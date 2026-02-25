@@ -12,10 +12,6 @@ Hệ thống quản lý quán internet — quản lý tài khoản người dùn
 - [Mô tả nghiệp vụ](#-mô-tả-nghiệp-vụ-internet-shop)
 - [Cấu trúc Database & Flyway](#-cấu-trúc-database--flyway)
 - [ER Diagram](#-er-diagram)
-- [Chi tiết các bảng](#-chi-tiết-các-bảng)
-- [REST API](#-rest-api)
-- [SQL mẫu](#-sql-mẫu)
-
 ---
 
 ## 🛠 Tech Stack
@@ -26,7 +22,7 @@ Hệ thống quản lý quán internet — quản lý tài khoản người dùn
 | **Framework** | Spring Boot | 3.1.0 | Framework chính — auto-configuration, embedded server |
 | **Web** | Spring Web (MVC) | — | Xây dựng REST API, xử lý HTTP request/response |
 | **ORM** | Spring Data JPA + Hibernate | — | Tương tác database qua Entity/Repository pattern |
-| **Database** | H2 (in-memory) | — | DB nhúng dùng cho demo/test, có thể thay bằng PostgreSQL/MySQL |
+| **Database** | PostgreSQL | 16 | Database quan hệ chạy qua Docker |
 | **DB Migration** | Flyway | — | Quản lý phiên bản database — tự động migrate khi khởi động |
 | **Build tool** | Gradle | 8.5 | Quản lý dependency, build, test |
 | **Code gen** | Lombok | 1.18.30 | Tự sinh getter/setter/constructor qua annotation (`@Data`, `@Getter`...) |
@@ -36,7 +32,7 @@ Hệ thống quản lý quán internet — quản lý tài khoản người dùn
 
 - **Spring Boot** — framework phổ biến nhất cho Java backend, cộng đồng lớn, hệ sinh thái phong phú
 - **Flyway** — quản lý database migration theo version, đảm bảo schema nhất quán giữa các môi trường (dev/staging/prod). Mỗi lần thay đổi DB tạo 1 file migration mới, có thể rollback và audit
-- **H2 in-memory** — DB nhúng, không cần cài đặt, phù hợp demo & test nhanh. Khi lên production chỉ cần đổi datasource URL sang PostgreSQL/MySQL
+- **PostgreSQL** — database quan hệ mạnh mẽ, miễn phí, phù hợp production. Chạy qua Docker container, dễ dàng setup và reset
 - **JPA/Hibernate** — ORM tiêu chuẩn, map Java object ↔ database table, giảm viết SQL thủ công
 - **Lombok** — giảm boilerplate code (getter, setter, constructor), code gọn hơn
 - **Swagger** — documentation tự động, có thể test API ngay trên trình duyệt
@@ -48,10 +44,9 @@ Hệ thống quản lý quán internet — quản lý tài khoản người dùn
 ```
 src/main/
 ├── java/item/
-│   ├── ItemApplication.java              # Main class — điểm khởi chạy Spring Boot
-│   ├── H2Config.java                     # Cấu hình H2 TCP server
+│   ├── ItemApplication.java        
 │   │
-│   ├── entity/                           # 🗃️ Entity — ánh xạ bảng database
+│   ├── entity/                          
 │   │   ├── CategoryEntity.java           #   Bảng categories (NORMAL/VIP/VVIP)
 │   │   ├── UserEntity.java               #   Bảng users (tài khoản người dùng)
 │   │   ├── UserBalanceTransactionEntity.java  #   Bảng lịch sử giao dịch
@@ -63,7 +58,7 @@ src/main/
 │   │   ├── OrderItemEntity.java          #   Bảng chi tiết đơn hàng
 │   │   └── OrderItemId.java              #   Composite key (order_id, item_id)
 │   │
-│   ├── repository/                       # 🔍 Repository — truy vấn database
+│   ├── repository/                   
 │   │   ├── CategoryRepository.java
 │   │   ├── UserRepository.java
 │   │   ├── UserBalanceTransactionRepository.java
@@ -74,14 +69,14 @@ src/main/
 │   │   └── service/
 │   │       └── ItemRepository.java
 │   │
-│   ├── service/                          # ⚙️ Service — xử lý logic nghiệp vụ
-│   │   ├── UserService.java              #   Tạo tài khoản, nạp tiền, đổi gói
-│   │   ├── SessionService.java           #   Bắt đầu/kết thúc phiên, tính thời gian còn lại
-│   │   ├── SearchItemService.java        #   Tìm kiếm món ăn/thức uống
-│   │   ├── CartService.java              #   Quản lý giỏ hàng
-│   │   └── OrderService.java             #   Tạo đơn hàng, trừ tiền
+│   ├── service/                      
+│   │   ├── UserService.java              
+│   │   ├── SessionService.java           
+│   │   ├── SearchItemService.java        
+│   │   ├── CartService.java          
+│   │   └── OrderService.java          
 │   │
-│   ├── controller/                       # 🌐 Controller — REST API endpoints
+│   ├── controller/                       #   Controller — REST API endpoints
 │   │   ├── UserController.java           #   /user/*
 │   │   ├── SessionController.java        #   /session/*
 │   │   ├── ItemController.java           #   /item/*
@@ -89,7 +84,7 @@ src/main/
 │   │   ├── OrderController.java          #   /order/*
 │   │   └── GlobalExceptionHandler.java   #   Xử lý lỗi toàn cục
 │   │
-│   └── model/                            # 📦 DTO — dữ liệu truyền giữa client ↔ server
+│   └── model/                            # DTO — dữ liệu truyền giữa client ↔ server
 │       ├── CreateUserCommand.java
 │       ├── DepositCommand.java
 │       ├── CreateOrderCommand.java
@@ -106,12 +101,12 @@ src/main/
 └── resources/
     ├── application.properties            # Cấu hình app (datasource, flyway, jpa, swagger)
     └── db/
-        └── migration/                    # 📂 Flyway migration scripts
-            ├── V1__create_schema.sql     #   Tạo 8 bảng + foreign keys
-            ├── V2__create_indexes.sql    #   Thêm indexes tối ưu truy vấn
-            ├── V3__seed_users.sql        #   Seed dữ liệu: gói cước, users, giao dịch, phiên
-            ├── V4__seed_items.sql        #   Seed dữ liệu: menu đồ ăn & thức uống
-            └── V5__seed_orders.sql       #   Seed dữ liệu: giỏ hàng, đơn hàng
+        └── migration/                    
+            ├── V1__create_schema.sql     
+            ├── V2__create_indexes.sql   
+            ├── V3__seed_users.sql        
+            ├── V4__seed_items.sql        
+            └── V5__seed_orders.sql       
 ```
 
 **Luồng dữ liệu:** `Controller` → `Service` → `Repository` → `Database`
@@ -120,24 +115,35 @@ src/main/
 
 ## 🚀 Cách chạy
 
-```bash
-# Clone project
-git clone https://github.com/ToanPham1101/spring-boot-item-api.git
-cd spring-boot-item-api
+**Yêu cầu:** Docker & Docker Compose đã cài sẵn.
 
-# Chạy ứng dụng
+**Bước 1:** Khởi động PostgreSQL container
+
+```bash
+docker-compose up -d
+```
+
+**Bước 2:** Chạy Spring Boot
+
+```bash
 ./gradlew bootRun
 ```
 
-Sau khi khởi động:
-| Tài nguyên | URL |
-|-----------|-----|
-| **Swagger UI** (xem & test API) | http://localhost:8080 |
-| **H2 Console** (xem database) | http://localhost:8080/h2 |
-| H2 JDBC URL | `jdbc:h2:mem:test` |
-| H2 Username / Password | `sa` / `123456` |
+| Tài nguyên | URL / Thông tin |
+|-----------|-----------------|
+| **Swagger UI** | http://localhost:8080 |
+| **PostgreSQL** | `localhost:5432` |
+| Database name | `internetshop` |
+| Username / Password | `postgres` / `postgres123` |
 
-> 💡 Khi app khởi động, **Flyway** tự động chạy các file migration theo thứ tự phiên bản (V1 → V2 → V3 → V4 → V5). Database được tạo và seed dữ liệu mẫu tự động.
+**Dừng PostgreSQL:**
+
+```bash
+docker-compose down          # Dừng container (giữ dữ liệu)
+docker-compose down -v       # Dừng container + xóa dữ liệu (reset DB)
+```
+
+> 💡 Khi app khởi động, **Flyway** tự động chạy các file migration theo thứ tự phiên bản (V1 → V2 → V3 → V4 → V5). Database được tạo schema và seed dữ liệu mẫu tự động — không cần chạy SQL thủ công.
 
 ---
 
@@ -151,9 +157,9 @@ Quán internet cung cấp dịch vụ truy cập internet theo giờ với 3 gó
 
 | Gói | Giá/giờ | Đối tượng |
 |-----|---------|-----------|
-| 🟢 **NORMAL** | 10.000 VNĐ/h | Khách thường, máy khu vực chung |
-| 🟡 **VIP** | 15.000 VNĐ/h | Máy cấu hình cao, ghế thoải mái |
-| 🔴 **VVIP** | 20.000 VNĐ/h | Phòng riêng, máy cao cấp nhất |
+|  **NORMAL** | 10.000 VNĐ/h | Khách thường, máy khu vực chung |
+|  **VIP** | 15.000 VNĐ/h | Máy cấu hình cao, ghế thoải mái |
+|  **VVIP** | 20.000 VNĐ/h | Phòng riêng, máy cao cấp nhất |
 
 ### Các nghiệp vụ chính
 
@@ -189,8 +195,8 @@ Quán internet cung cấp dịch vụ truy cập internet theo giờ với 3 gó
 
 #### 6️⃣ Gọi đồ ăn / thức uống
 Menu gồm 2 loại:
-- 🍔 **FOOD** — Xúc xích, bánh mì, mỳ tôm...
-- 🥤 **DRINK** — Cà phê, nước cam, trà đá...
+- Xúc xích, bánh mì, mỳ tôm...
+- Cà phê, nước cam, trà đá...
 
 **Quy trình đặt đồ:**
 ```
@@ -235,40 +241,17 @@ Khi đặt hàng:
                        │  (thêm giỏ)  │     │  (balance ↓ theo bill)│
                        └──────────────┘     └───────────────────────┘
 
-  🔄 Mọi thay đổi số dư đều được ghi vào bảng user_balance_transactions
+   Mọi thay đổi số dư đều được ghi vào bảng user_balance_transactions
 ```
 
 ---
 
 ## 🗄 Cấu trúc Database & Flyway
 
-### Flyway là gì?
-
-**Flyway** là công cụ quản lý phiên bản database (database migration). Thay vì dùng `schema.sql` + `data.sql` tự chạy mỗi lần restart (mất dữ liệu), Flyway:
-
-- ✅ Chạy migration **theo thứ tự phiên bản** (V1, V2, V3...)
-- ✅ **Chỉ chạy 1 lần** — migration đã chạy sẽ không chạy lại
-- ✅ Theo dõi lịch sử migration trong bảng `flyway_schema_history`
-- ✅ Phát hiện **thay đổi trái phép** (checksum mismatch)
-- ✅ Hỗ trợ mọi DB: H2, PostgreSQL, MySQL, Oracle, SQL Server...
-
 ### Quy ước đặt tên file migration
 
 ```
 V{version}__{description}.sql
-
-Ví dụ:
-  V1__create_schema.sql       ← Phiên bản 1: tạo bảng
-  V2__create_indexes.sql      ← Phiên bản 2: tạo index
-  V3__seed_users.sql          ← Phiên bản 3: seed dữ liệu user
-  V4__seed_items.sql          ← Phiên bản 4: seed dữ liệu menu
-  V5__seed_orders.sql         ← Phiên bản 5: seed dữ liệu đơn hàng
-
-Lưu ý:
-  - Prefix "V" + số phiên bản
-  - Hai dấu gạch dưới "__" phân cách version và description
-  - Không được sửa file migration đã chạy (sẽ lỗi checksum)
-  - Muốn thay đổi schema → tạo file migration MỚI (V6, V7...)
 ```
 
 ### Cấu trúc thư mục Flyway
@@ -277,22 +260,12 @@ Lưu ý:
 src/main/resources/
 └── db/
     └── migration/
-        ├── V1__create_schema.sql      # DDL: Tạo 8 bảng + foreign keys
-        ├── V2__create_indexes.sql     # DDL: Tạo indexes tối ưu truy vấn
-        ├── V3__seed_users.sql         # DML: Seed gói cước, users, giao dịch, phiên
-        ├── V4__seed_items.sql         # DML: Seed menu đồ ăn & thức uống
-        └── V5__seed_orders.sql        # DML: Seed giỏ hàng, đơn hàng, chi tiết đơn
+        ├── V1__create_schema.sql    
+        ├── V2__create_indexes.sql  
+        ├── V3__seed_users.sql     
+        ├── V4__seed_items.sql    
+        └── V5__seed_orders.sql      
 ```
-
-### Chi tiết từng migration
-
-| File | Loại | Nội dung |
-|------|------|----------|
-| `V1__create_schema.sql` | DDL | Tạo 8 bảng: `categories`, `users`, `user_balance_transactions`, `sessions`, `items`, `cart_item`, `orders`, `order_item` với đầy đủ PK, FK, constraints |
-| `V2__create_indexes.sql` | DDL | Tạo indexes trên các cột hay truy vấn: `username`, `user_id`, `status`, `order_status`, `item_type` |
-| `V3__seed_users.sql` | DML | Insert 3 gói cước, 21 users, 21 giao dịch nạp tiền, 3 phiên mẫu |
-| `V4__seed_items.sql` | DML | Insert 50 món: 30 đồ ăn (FOOD) + 20 thức uống (DRINK) |
-| `V5__seed_orders.sql` | DML | Insert 4 giỏ hàng, 45 đơn hàng, ~200 chi tiết đơn hàng |
 
 ### Cấu hình Flyway trong `application.properties`
 
@@ -309,57 +282,16 @@ spring.jpa.hibernate.ddl-auto=validate
 spring.sql.init.mode=never
 ```
 
-### Bảng `flyway_schema_history` (tự động tạo bởi Flyway)
-
-Khi app khởi động, Flyway tạo bảng `flyway_schema_history` để theo dõi lịch sử migration:
-
-```sql
-SELECT installed_rank, version, description, type, checksum, installed_on, success
-FROM flyway_schema_history;
-```
-
-| installed_rank | version | description    | type | success |
-|---------------|---------|----------------|------|---------|
-| 1             | 1       | create schema  | SQL  | true    |
-| 2             | 2       | create indexes | SQL  | true    |
-| 3             | 3       | seed users     | SQL  | true    |
-| 4             | 4       | seed items     | SQL  | true    |
-| 5             | 5       | seed orders    | SQL  | true    |
-
-### Cách thêm migration mới
-
-Khi cần thay đổi database (thêm bảng, thêm cột, sửa constraint...):
-
-```bash
-# 1. Tạo file migration mới (KHÔNG sửa file cũ)
-touch src/main/resources/db/migration/V6__add_phone_to_users.sql
-
-# 2. Viết SQL trong file
-ALTER TABLE users ADD COLUMN phone VARCHAR(20);
-
-# 3. Restart app → Flyway tự chạy V6
-./gradlew bootRun
-```
-
-### Chuyển sang PostgreSQL / MySQL (production)
-
-Chỉ cần đổi datasource trong `application.properties`:
+### Cấu hình PostgreSQL trong `application.properties`
 
 ```properties
-# PostgreSQL
 spring.datasource.url=jdbc:postgresql://localhost:5432/internetshop
 spring.datasource.username=postgres
-spring.datasource.password=secret
+spring.datasource.password=postgres123
 spring.datasource.driver-class-name=org.postgresql.Driver
-
-# MySQL
-spring.datasource.url=jdbc:mysql://localhost:3306/internetshop
-spring.datasource.username=root
-spring.datasource.password=secret
-spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
 ```
 
-> ⚠️ Lưu ý: SQL syntax trong migration cần tương thích với DB đích. H2 `MODE=PostgreSQL` đã giúp tương thích phần lớn syntax.
+> 💡 Flyway migration files tương thích với PostgreSQL. Khi app khởi động, Flyway tự động chạy các file migration theo thứ tự phiên bản.
 
 ---
 
@@ -527,155 +459,4 @@ items       (1) ◄──── (N)  cart_item                 Mỗi item có tr
 | `item_id` | INTEGER | PK, FK → items | Mã món |
 | `quantity` | INTEGER | NOT NULL | Số lượng |
 | `price` | INTEGER | NOT NULL | Giá tại thời điểm đặt |
-
----
-
-## 🌐 REST API
-
-### 👤 Quản lý người dùng (`/user`)
-
-| Method | Endpoint | Mô tả |
-|--------|----------|-------|
-| `POST` | `/user` | Tạo tài khoản mới |
-| `GET` | `/user` | Danh sách tất cả người dùng |
-| `GET` | `/user/{id}` | Thông tin user (kèm thời gian còn lại) |
-| `GET` | `/user/username/{username}` | Tìm user theo username |
-| `POST` | `/user/deposit` | Nạp tiền vào tài khoản |
-| `PUT` | `/user/{id}/category?category=VIP` | Đổi gói cước |
-| `GET` | `/user/{id}/transactions` | Lịch sử giao dịch |
-
-**Tạo tài khoản:**
-```json
-POST /user
-{
-  "username": "player01",
-  "fullName": "Nguyen Van A",
-  "password": "123456",
-  "category": "VIP"
-}
-```
-
-**Nạp tiền:**
-```json
-POST /user/deposit
-{
-  "userId": 1,
-  "amount": 200000,
-  "description": "Nạp tiền tại quầy"
-}
-```
-
-### 🖥️ Quản lý phiên internet (`/session`)
-
-| Method | Endpoint | Mô tả |
-|--------|----------|-------|
-| `POST` | `/session/start/{userId}` | Bắt đầu phiên (bắt đầu tính giờ) |
-| `POST` | `/session/end/{userId}` | Kết thúc phiên (trừ tiền theo giờ dùng) |
-| `GET` | `/session/time-remaining/{userId}` | Xem thời gian còn lại |
-| `GET` | `/session/history/{userId}` | Lịch sử các phiên |
-
-**Response mẫu — Thời gian còn lại:**
-```json
-GET /session/time-remaining/1
-{
-  "userId": 1,
-  "username": "ToanPDT",
-  "category": "NORMAL",
-  "balance": 500000,
-  "pricePerHour": 10000,
-  "remainingHours": 50,
-  "remainingMinutes": 0,
-  "remainingTimeFormatted": "50h 0m",
-  "hasActiveSession": false
-}
-```
-
-### 🍔 Menu đồ ăn / thức uống (`/item`)
-
-| Method | Endpoint | Mô tả |
-|--------|----------|-------|
-| `GET` | `/item/search` | Tất cả món |
-| `GET` | `/item/search?key=cà phê` | Tìm theo tên |
-| `GET` | `/item/search?key=33` | Tìm theo id hoặc tên chứa "33" |
-| `GET` | `/item/food` | Chỉ đồ ăn |
-| `GET` | `/item/drink` | Chỉ thức uống |
-
-### 🛒 Giỏ hàng (`/cart`)
-
-| Method | Endpoint | Mô tả |
-|--------|----------|-------|
-| `GET` | `/cart?userId=1` | Xem giỏ hàng |
-| `POST` | `/cart/quantity` | Thêm/sửa/xóa món trong giỏ |
-
-```json
-POST /cart/quantity
-{ "userId": 1, "itemId": 33, "quantity": 2 }   // Thêm 2 ly cà phê đen đá
-{ "userId": 1, "itemId": 33, "quantity": 5 }   // Sửa thành 5 ly
-{ "userId": 1, "itemId": 33, "quantity": 0 }   // Xóa khỏi giỏ
-```
-
-### 📦 Đơn hàng (`/order`)
-
-| Method | Endpoint | Mô tả |
-|--------|----------|-------|
-| `POST` | `/order` | Tạo đơn từ giỏ hàng (trừ tiền, xóa giỏ) |
-| `GET` | `/order/search` | Tất cả đơn hàng |
-| `GET` | `/order/search?userId=1` | Đơn hàng theo user |
-| `GET` | `/order/search?orderStatus=NEW` | Đơn hàng theo trạng thái |
-
-```json
-POST /order
-{ "userId": 1, "discount": 5000 }
-```
-
----
-
-## 📊 SQL mẫu
-
-### Xem thời gian còn lại của user
-```sql
-SELECT u.username, u.balance, c.name AS category, c.price_per_hour,
-       u.balance / c.price_per_hour AS remaining_hours,
-       (u.balance % c.price_per_hour) * 60 / c.price_per_hour AS remaining_minutes
-FROM users u
-JOIN categories c ON u.category_id = c.id
-WHERE u.id = 1;
-```
-
-### Top 3 user chi tiêu nhiều nhất
-```sql
-SELECT sub.user_id, SUM(sub.order_total) AS total_spent
-FROM (
-    SELECT o.id, o.user_id,
-           COALESCE(SUM(oi.quantity * oi.price), 0) - o.discount AS order_total
-    FROM orders o
-    LEFT JOIN order_item oi ON o.id = oi.order_id
-    WHERE o.order_status = 2  -- Chỉ tính đơn DONE
-    GROUP BY o.id, o.user_id, o.discount
-) sub
-GROUP BY sub.user_id
-ORDER BY total_spent DESC
-LIMIT 3;
-```
-
-### Top 5 món bán chạy nhất Q4/2025
-```sql
-SELECT oi.item_id, i.name, SUM(oi.quantity) AS total_qty,
-       SUM(oi.quantity * oi.price) AS total_revenue
-FROM order_item oi
-JOIN orders o ON oi.order_id = o.id
-JOIN items i ON oi.item_id = i.id
-WHERE o.order_status = 2
-  AND o.order_date BETWEEN '2025-10-01' AND '2025-12-31'
-GROUP BY oi.item_id, i.name
-ORDER BY total_revenue DESC
-LIMIT 5;
-```
-
-### Xem lịch sử Flyway migration
-```sql
-SELECT installed_rank, version, description, script, checksum, installed_on, success
-FROM flyway_schema_history
-ORDER BY installed_rank;
-```
 

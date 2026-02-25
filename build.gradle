@@ -26,7 +26,7 @@ dependencies {
     implementation 'org.flywaydb:flyway-core'
 
     // Database
-    implementation 'com.h2database:h2'
+    implementation 'org.postgresql:postgresql'
 
     compileOnly 'org.projectlombok:lombok:1.18.30'
     annotationProcessor 'org.projectlombok:lombok:1.18.30'
