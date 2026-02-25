@@ -1,293 +1,511 @@
-# Internet Shop Service - Item API
+# 🖥️ Internet Shop Management Service
 
-## Giới thiệu
-- Java 17
-- Gradle 8.5
-- Spring Boot 3.1.0 (Web, JPA)
-- Lombok
-- Database H2
-  - gồm các bảng items, orders, order_item, cart_item, users, user_balance_transactions, categories, sessions
-  - bảng và dữ liệu được tự động tạo khi start app (xem thêm [schema.sql](src/main/resources/schema.sql) và [data.sql](src/main/resources/data.sql))
-  - Cách vào database
-    - username/password là sa/123456
-    - dùng plugin database của IntelliJ IDEA, JDBC URL `jdbc:h2:tcp://localhost:9092/mem:test`
-    - mở http://localhost:8080/h2, JDBC URL `jdbc:h2:mem:test`
-- Swagger
-  - mở http://localhost:8080 để vào màn hình Swagger, xem và test api
+Hệ thống quản lý quán internet — quản lý tài khoản người dùng, nạp tiền, tính thời gian sử dụng, gọi đồ ăn/thức uống trừ trực tiếp vào số dư.
 
 ---
 
-## Relational Database Structure - Internet Shop Service
+## 📋 Mục lục
 
-### Business Rules
-
-| Category | Price         | Description              |
-|----------|---------------|--------------------------|
-| NORMAL   | 10.000 VNĐ/h | Standard internet access |
-| VIP      | 15.000 VNĐ/h | Priority internet access |
-| VVIP     | 20.000 VNĐ/h | Premium internet access  |
-
-**Features:** Create account, Add money, Get time remaining, Order food & drink items (deducted from remaining balance)
+- [Tech Stack](#-tech-stack)
+- [Kiến trúc dự án](#-kiến-trúc-dự-án)
+- [Cách chạy](#-cách-chạy)
+- [Mô tả nghiệp vụ](#-mô-tả-nghiệp-vụ-internet-shop)
+- [Cấu trúc Database](#-cấu-trúc-database)
+- [ER Diagram](#-er-diagram)
+- [Chi tiết các bảng](#-chi-tiết-các-bảng)
+- [REST API](#-rest-api)
+- [SQL mẫu](#-sql-mẫu)
 
 ---
 
-### ER Diagram (Text-based)
+## 🛠 Tech Stack
+
+| Thành phần | Công nghệ | Phiên bản | Mô tả |
+|------------|-----------|-----------|-------|
+| **Ngôn ngữ** | Java | 17 | LTS, hỗ trợ records, sealed classes, pattern matching |
+| **Framework** | Spring Boot | 3.1.0 | Framework chính — auto-configuration, embedded server |
+| **Web** | Spring Web (MVC) | — | Xây dựng REST API, xử lý HTTP request/response |
+| **ORM** | Spring Data JPA + Hibernate | — | Tương tác database qua Entity/Repository pattern |
+| **Database** | H2 (in-memory) | — | DB nhúng, tự động tạo bảng khi khởi động, dùng cho demo/test |
+| **Build tool** | Gradle | 8.5 | Quản lý dependency, build, test |
+| **Code gen** | Lombok | 1.18.30 | Tự sinh getter/setter/constructor qua annotation (`@Data`, `@Getter`...) |
+| **API docs** | SpringDoc OpenAPI (Swagger) | 2.1.0 | Tự tạo trang Swagger UI để xem và test API |
+
+### Tại sao chọn các công nghệ này?
+
+- **Spring Boot** — framework phổ biến nhất cho Java backend, cộng đồng lớn, hệ sinh thái phong phú
+- **H2 in-memory** — không cần cài đặt DB riêng, dữ liệu tự tạo khi start app, phù hợp demo & test nhanh
+- **JPA/Hibernate** — ORM tiêu chuẩn, map Java object ↔ database table, giảm viết SQL thủ công
+- **Lombok** — giảm boilerplate code (getter, setter, constructor), code gọn hơn
+- **Swagger** — documentation tự động, có thể test API ngay trên trình duyệt
+
+---
+
+## 📁 Kiến trúc dự án
 
 ```
-┌─────────────────────┐       ┌──────────────────────────────┐
-│       users          │       │        categories             │
-├─────────────────────┤       ├──────────────────────────────┤
-│ PK  id         INT  │       │ PK  id            INT        │
-│     username   VCR  │       │     name          VCR        │
-│     full_name  VCR  │       │     price_per_hour INT       │
-│     password   VCR  │       │                              │
-│     balance    INT  │       │  NORMAL  = 10000 VND/h       │
-│ FK  category_id INT ├──────>│  VIP     = 15000 VND/h       │
-│     created_at TS   │       │  VVIP    = 20000 VND/h       │
-└────────┬────────────┘       └──────────────────────────────┘
-         │
-         │ 1:N
-         │
-         ├───────────────────────────────────────┐
-         │                                       │
-         ▼                                       ▼
-┌─────────────────────────────┐   ┌──────────────────────────────┐
-│  user_balance_transactions   │   │         sessions              │
-├─────────────────────────────┤   ├──────────────────────────────┤
-│ PK  id              INT     │   │ PK  id             INT       │
-│ FK  user_id         VCR     │   │ FK  user_id        VCR       │
-│     amount          INT     │   │ FK  category_id    INT       │
-│     type            INT     │   │     start_time     TIMESTAMP │
-│       1=DEPOSIT             │   │     end_time       TIMESTAMP │
-│       2=ORDER_PAYMENT       │   │     price_per_hour INT       │
-│     description     VCR     │   │     status         INT       │
-│     created_at      TS      │   │       1=ACTIVE               │
-│                             │   │       2=EXPIRED              │
-└─────────────────────────────┘   │       3=CANCELLED            │
-                                  └──────────────────────────────┘
-         │
-         │
-         ▼
-┌─────────────────────┐        ┌─────────────────────────────┐
-│      orders          │        │        items                 │
-├─────────────────────┤        ├─────────────────────────────┤
-│ PK  id         INT  │        │ PK  id           INT        │
-│ FK  user_id    VCR  │        │     name         VCR        │
-│     discount   INT  │        │     price        INT        │
-│     order_status INT│        │     item_type    INT        │
-│       1=NEW         │        │       1=FOOD                │
-│       2=DONE        │        │       2=DRINK               │
-│       3=CANCEL      │        └──────────┬──────────────────┘
-│     order_date DATE │                   │
-│     total_amount INT│                   │
-└────────┬────────────┘                   │
-         │                                │
-         │ 1:N                            │
-         ▼                                │
-┌──────────────────────────┐              │
-│      order_item           │              │
-├──────────────────────────┤              │
-│ PK,FK  order_id    INT   ├──────────────┘
-│ PK,FK  item_id     INT   │
-│        quantity    INT   │
-│        price       INT   │
-└──────────────────────────┘
-
-┌─────────────────────┐
-│      cart_item       │
-├─────────────────────┤
-│ PK,FK  user_id  VCR │──────> users.id
-│ PK,FK  item_id  INT │──────> items.id
-│        quantity INT  │
-└─────────────────────┘
+src/main/java/item/
+├── ItemApplication.java              # Main class — điểm khởi chạy Spring Boot
+├── H2Config.java                     # Cấu hình H2 TCP server để kết nối DB từ bên ngoài
+│
+├── entity/                           # 🗃️ Entity — ánh xạ bảng database
+│   ├── CategoryEntity.java           #   Bảng categories (NORMAL/VIP/VVIP)
+│   ├── UserEntity.java               #   Bảng users (tài khoản người dùng)
+│   ├── UserBalanceTransactionEntity.java  #   Bảng lịch sử giao dịch
+│   ├── SessionEntity.java            #   Bảng phiên sử dụng internet
+│   ├── ItemEntity.java               #   Bảng items (đồ ăn/thức uống)
+│   ├── CartItemEntity.java           #   Bảng giỏ hàng
+│   ├── CartItemId.java               #   Composite key (user_id, item_id)
+│   ├── OrderEntity.java              #   Bảng đơn hàng
+│   ├── OrderItemEntity.java          #   Bảng chi tiết đơn hàng
+│   └── OrderItemId.java              #   Composite key (order_id, item_id)
+│
+├── repository/                       # 🔍 Repository — truy vấn database
+│   ├── CategoryRepository.java
+│   ├── UserRepository.java
+│   ├── UserBalanceTransactionRepository.java
+│   ├── SessionRepository.java
+│   ├── CartItemRepository.java
+│   ├── OrderRepository.java
+│   ├── OrderItemRepository.java
+│   └── service/
+│       └── ItemRepository.java
+│
+├── service/                          # ⚙️ Service — xử lý logic nghiệp vụ
+│   ├── UserService.java              #   Tạo tài khoản, nạp tiền, đổi gói
+│   ├── SessionService.java           #   Bắt đầu/kết thúc phiên, tính thời gian còn lại
+│   ├── SearchItemService.java        #   Tìm kiếm món ăn/thức uống
+│   ├── CartService.java              #   Quản lý giỏ hàng
+│   └── OrderService.java             #   Tạo đơn hàng, trừ tiền
+│
+├── controller/                       # 🌐 Controller — REST API endpoints
+│   ├── UserController.java           #   /user/*
+│   ├── SessionController.java        #   /session/*
+│   ├── ItemController.java           #   /item/*
+│   ├── CartController.java           #   /cart/*
+│   ├── OrderController.java          #   /order/*
+│   └── GlobalExceptionHandler.java   #   Xử lý lỗi toàn cục
+│
+└── model/                            # 📦 DTO — dữ liệu truyền giữa client ↔ server
+    ├── CreateUserCommand.java
+    ├── DepositCommand.java
+    ├── CreateOrderCommand.java
+    ├── UpdateCartQuantityCommand.java
+    ├── GetCartQuery.java / GetCartResult.java
+    ├── SearchItemsQuery.java / SearchItemsResult.java
+    ├── SearchOrdersQuery.java / SearchOrdersResult.java
+    ├── UserResult.java / SessionResult.java
+    ├── OrderStatus.java              #   Enum: NEW(1), DONE(2), CANCEL(3)
+    ├── SessionStatus.java            #   Enum: ACTIVE(1), EXPIRED(2), CANCELLED(3)
+    ├── TransactionType.java          #   Enum: DEPOSIT(1), ORDER_PAYMENT(2), SESSION_PAYMENT(3)
+    └── ItemType.java                 #   Enum: FOOD(1), DRINK(2)
 ```
 
----
-
-### Table Details
-
-#### 1. `categories` — Internet service categories
-| Column         | Type         | Constraint  | Description               |
-|----------------|--------------|-------------|---------------------------|
-| id             | INTEGER      | PK, AUTO    | Category ID               |
-| name           | VARCHAR(50)  | NOT NULL    | NORMAL / VIP / VVIP       |
-| price_per_hour | INTEGER      | NOT NULL    | Price per hour (VNĐ)      |
-
-**Sample Data:**
-
-| id | name   | price_per_hour |
-|----|--------|----------------|
-| 1  | NORMAL | 10000          |
-| 2  | VIP    | 15000          |
-| 3  | VVIP   | 20000          |
+**Luồng dữ liệu:** `Controller` → `Service` → `Repository` → `Database`
 
 ---
 
-#### 2. `users` — User accounts
-| Column      | Type         | Constraint  | Description                  |
-|-------------|--------------|-------------|------------------------------|
-| id          | INTEGER      | PK, AUTO    | User ID                      |
-| username    | VARCHAR(50)  | NOT NULL, UQ| Unique login name            |
-| full_name   | VARCHAR(255) | NOT NULL    | Display name                 |
-| password    | VARCHAR(255) | NOT NULL    | Hashed password              |
-| balance     | INTEGER      | NOT NULL    | Current balance (VNĐ)        |
-| category_id | INTEGER      | FK → categories.id | Subscription tier     |
-| created_at  | TIMESTAMP    | NOT NULL    | Account creation time        |
+## 🚀 Cách chạy
 
----
+```bash
+# Clone project
+git clone https://github.com/ToanPham1101/spring-boot-item-api.git
+cd spring-boot-item-api
 
-#### 3. `user_balance_transactions` — Deposit / payment history
-| Column      | Type         | Constraint  | Description                          |
-|-------------|--------------|-------------|--------------------------------------|
-| id          | INTEGER      | PK, AUTO    | Transaction ID                       |
-| user_id     | INTEGER      | FK → users.id | User reference                    |
-| amount      | INTEGER      | NOT NULL    | Amount in VNĐ (+ deposit, − payment)|
-| type        | INTEGER      | NOT NULL    | 1=DEPOSIT, 2=ORDER_PAYMENT          |
-| description | VARCHAR(255) |             | Note / reason                        |
-| created_at  | TIMESTAMP    | NOT NULL    | Transaction time                     |
-
----
-
-#### 4. `sessions` — Internet usage sessions
-| Column         | Type         | Constraint  | Description                        |
-|----------------|--------------|-------------|------------------------------------|
-| id             | INTEGER      | PK, AUTO    | Session ID                         |
-| user_id        | INTEGER      | FK → users.id | User reference                  |
-| category_id    | INTEGER      | FK → categories.id | Category at session start   |
-| start_time     | TIMESTAMP    | NOT NULL    | Session start                      |
-| end_time       | TIMESTAMP    |             | Session end (NULL if active)       |
-| price_per_hour | INTEGER      | NOT NULL    | Snapshot of rate at session start  |
-| status         | INTEGER      | NOT NULL    | 1=ACTIVE, 2=EXPIRED, 3=CANCELLED  |
-
-**Time Remaining Calculation:**
-```
-remaining_balance = users.balance
-time_remaining_hours = remaining_balance / categories.price_per_hour
-
-Example: User has 50,000 VNĐ with VIP (15,000/h)
-  → Time remaining = 50,000 / 15,000 = 3.33 hours ≈ 3h 20m
+# Chạy ứng dụng
+./gradlew bootRun
 ```
 
----
+Sau khi khởi động:
+| Tài nguyên | URL |
+|-----------|-----|
+| **Swagger UI** (xem & test API) | http://localhost:8080 |
+| **H2 Console** (xem database) | http://localhost:8080/h2 |
+| H2 JDBC URL | `jdbc:h2:mem:test` |
+| H2 Username / Password | `sa` / `123456` |
 
-#### 5. `items` — Food & drink menu
-| Column    | Type         | Constraint | Description               |
-|-----------|--------------|------------|---------------------------|
-| id        | INTEGER      | PK, AUTO   | Item ID                   |
-| name      | VARCHAR(255) | NOT NULL   | Item name                 |
-| price     | INTEGER      | NOT NULL   | Price (VNĐ)              |
-| item_type | INTEGER      |            | 1=FOOD, 2=DRINK           |
-
----
-
-#### 6. `orders` — Food & drink orders (deducted from balance)
-| Column       | Type         | Constraint  | Description                    |
-|--------------|--------------|-------------|--------------------------------|
-| id           | INTEGER      | PK, AUTO    | Order ID                       |
-| user_id      | VARCHAR(16)  | FK → users.id | User who placed order       |
-| discount     | INTEGER      | NOT NULL    | Discount amount (VNĐ)         |
-| order_status | INTEGER      | NOT NULL    | 1=NEW, 2=DONE, 3=CANCEL       |
-| order_date   | DATE         | NOT NULL    | Date of order                  |
-| total_amount | INTEGER      |             | Total after discount           |
+> 💡 Database H2 chạy trong bộ nhớ — dữ liệu tự tạo lại mỗi lần restart app từ file `schema.sql` và `data.sql`
 
 ---
 
-#### 7. `order_item` — Items in each order
-| Column   | Type    | Constraint          | Description            |
-|----------|---------|---------------------|------------------------|
-| order_id | INTEGER | PK, FK → orders.id  | Order reference        |
-| item_id  | INTEGER | PK, FK → items.id   | Item reference         |
-| quantity | INTEGER | NOT NULL            | Number of items        |
-| price    | INTEGER | NOT NULL            | Price at time of order |
+## 💼 Mô tả nghiệp vụ Internet Shop
 
----
+### Tổng quan
 
-#### 8. `cart_item` — Shopping cart (before ordering)
-| Column   | Type        | Constraint          | Description           |
-|----------|-------------|---------------------|-----------------------|
-| user_id  | VARCHAR(16) | PK, FK → users.id   | User reference        |
-| item_id  | INTEGER     | PK, FK → items.id   | Item reference        |
-| quantity | INTEGER     | NOT NULL            | Quantity in cart       |
+Quán internet cung cấp dịch vụ truy cập internet theo giờ với 3 gói cước, đồng thời bán đồ ăn/thức uống cho khách hàng. Toàn bộ chi phí được quản lý qua **số dư tài khoản** (balance).
 
----
+### 3 gói cước
 
-### Relationships Summary
+| Gói | Giá/giờ | Đối tượng |
+|-----|---------|-----------|
+| 🟢 **NORMAL** | 10.000 VNĐ/h | Khách thường, máy khu vực chung |
+| 🟡 **VIP** | 15.000 VNĐ/h | Máy cấu hình cao, ghế thoải mái |
+| 🔴 **VVIP** | 20.000 VNĐ/h | Phòng riêng, máy cao cấp nhất |
+
+### Các nghiệp vụ chính
+
+#### 1️⃣ Tạo tài khoản (`POST /user`)
+- Khách hàng đăng ký tài khoản với username, họ tên, mật khẩu
+- Chọn gói cước: `NORMAL`, `VIP`, hoặc `VVIP`
+- Số dư ban đầu = **0 VNĐ**
+
+#### 2️⃣ Nạp tiền (`POST /user/deposit`)
+- Khách nạp tiền vào tài khoản (tại quầy thu ngân)
+- Số dư tăng lên, ghi nhận lịch sử giao dịch (type = `DEPOSIT`)
+
+> **Ví dụ:** Nạp 100.000 VNĐ → balance: 0 → 100.000
+
+#### 3️⃣ Xem thời gian còn lại (`GET /session/time-remaining/{userId}`)
+- Thời gian = `số_dư / giá_mỗi_giờ`
+- Nếu đang có phiên đang chạy → trừ thêm chi phí đã dùng
+
+> **Ví dụ:** Gói VIP (15.000/h), số dư 100.000 VNĐ
+> → Thời gian còn = 100.000 ÷ 15.000 = **6 giờ 40 phút**
+
+#### 4️⃣ Bắt đầu phiên sử dụng (`POST /session/start/{userId}`)
+- Bắt đầu tính giờ, ghi nhận thời điểm `start_time`
+- Mỗi user chỉ có **1 phiên active** tại một thời điểm
+- Yêu cầu: số dư phải > 0
+
+#### 5️⃣ Kết thúc phiên (`POST /session/end/{userId}`)
+- Ghi nhận `end_time`, tính chi phí theo thời gian thực tế
+- Trừ tiền khỏi số dư, ghi nhận giao dịch (type = `SESSION_PAYMENT`)
+
+> **Ví dụ:** Dùng 2 giờ 30 phút, gói NORMAL (10.000/h)
+> → Chi phí = 150 phút × 10.000 / 60 = **25.000 VNĐ**
+
+#### 6️⃣ Gọi đồ ăn / thức uống
+Menu gồm 2 loại:
+- 🍔 **FOOD** — Xúc xích, bánh mì, mỳ tôm...
+- 🥤 **DRINK** — Cà phê, nước cam, trà đá...
+
+**Quy trình đặt đồ:**
+```
+Bước 1: Xem menu          →  GET  /item/search
+                              GET  /item/food      (chỉ đồ ăn)
+                              GET  /item/drink     (chỉ thức uống)
+
+Bước 2: Thêm vào giỏ hàng →  POST /cart/quantity
+                              { "userId": 1, "itemId": 33, "quantity": 2 }
+
+Bước 3: Xem giỏ hàng      →  GET  /cart?userId=1
+
+Bước 4: Đặt hàng          →  POST /order
+                              { "userId": 1, "discount": 5000 }
+```
+
+Khi đặt hàng:
+- Tính `tổng tiền = Σ(số_lượng × giá) − giảm_giá`
+- Kiểm tra số dư đủ không → nếu thiếu thì báo lỗi
+- **Trừ tiền** khỏi số dư → ghi nhận giao dịch (type = `ORDER_PAYMENT`)
+- Xóa giỏ hàng
+
+> **Ví dụ:** Gọi 2 ly cà phê sữa đá (18.000) + 1 xúc xích (5.000)
+> → Tổng = 2×18.000 + 1×5.000 = **41.000 VNĐ** → trừ vào số dư
+
+#### 7️⃣ Đổi gói cước (`PUT /user/{id}/category?category=VIP`)
+- Khách có thể nâng/hạ gói bất kỳ lúc nào
+- Phiên tiếp theo sẽ tính theo giá gói mới
+
+### Tổng quan luồng nghiệp vụ
 
 ```
-categories (1) ────── (N) users
-users      (1) ────── (N) user_balance_transactions
-users      (1) ────── (N) sessions
-users      (1) ────── (N) orders
-users      (1) ────── (N) cart_item
-orders     (1) ────── (N) order_item
-items      (1) ────── (N) order_item
-items      (1) ────── (N) cart_item
-categories (1) ────── (N) sessions
-```
+  ┌────────────────┐     ┌──────────────┐     ┌──────────────────────┐
+  │  TẠO TÀI KHOẢN │───▶ │   NẠP TIỀN   │───▶ │  SỬ DỤNG INTERNET    │
+  │  (chọn gói)    │     │  (balance ↑) │     │  start → ... → end   │
+  └────────────────┘     └──────┬───────┘     │  (balance ↓ theo giờ)│
+                                │             └──────────┬───────────┘
+                                │                        │
+                                ▼                        ▼
+                       ┌──────────────┐     ┌───────────────────────┐
+                       │  GỌI ĐỒ ĂN   │───▶ │  ĐẶT HÀNG             │
+                       │  (thêm giỏ)  │     │  (balance ↓ theo bill)│
+                       └──────────────┘     └───────────────────────┘
 
----
-
-### Business Flow
-
-```
-1. CREATE ACCOUNT
-   └─> INSERT into users (choose category: NORMAL/VIP/VVIP)
-       └─> balance = 0
-
-2. ADD MONEY (Deposit)
-   ├─> INSERT into user_balance_transactions (type=DEPOSIT)
-   └─> UPDATE users SET balance = balance + amount
-
-3. GET TIME REMAINING
-   └─> time_remaining = users.balance / categories.price_per_hour
-       Example:
-         balance = 100,000 VNĐ, category = VIP (15,000/h)
-         → time = 100,000 / 15,000 = 6h 40m
-
-4. ORDER FOOD & DRINK (deducted from balance)
-   ├─> Add items to cart_item
-   ├─> POST /order → creates order + order_items
-   ├─> total = SUM(quantity × price) − discount
-   ├─> UPDATE users SET balance = balance − total
-   ├─> INSERT into user_balance_transactions (type=ORDER_PAYMENT)
-   └─> DELETE from cart_item (clear cart)
-
-   Remaining time after order:
-     new_balance = old_balance − order_total
-     new_time = new_balance / price_per_hour
+  🔄 Mọi thay đổi số dư đều được ghi vào bảng user_balance_transactions
 ```
 
 ---
 
-### SQL Examples
+## 🗄 Cấu trúc Database
 
-#### Get time remaining for a user
+Hệ thống gồm **8 bảng**, chia thành 3 nhóm chức năng:
+
+| Nhóm | Bảng | Chức năng |
+|------|------|-----------|
+| **Người dùng** | `categories`, `users`, `user_balance_transactions` | Quản lý tài khoản, gói cước, lịch sử giao dịch |
+| **Internet** | `sessions` | Theo dõi phiên sử dụng, tính giờ |
+| **Đồ ăn/uống** | `items`, `cart_item`, `orders`, `order_item` | Menu, giỏ hàng, đặt hàng |
+
+---
+
+## 📊 ER Diagram
+
+```
+ ┌──────────────────┐          ┌──────────────────────────┐
+ │    categories    │          │         users            │
+ ├──────────────────┤          ├──────────────────────────┤
+ │ PK id        INT │◄────┐    │ PK id            INT     │
+ │    name      VCR │     │    │    username       VCR  UQ│
+ │    price/h   INT │     └────┤ FK category_id    INT    │
+ │                  │          │    full_name      VCR    │
+ │  NORMAL = 10000  │          │    password       VCR    │
+ │  VIP    = 15000  │          │    balance        INT    │
+ │  VVIP   = 20000  │          │    created_at     TS     │
+ └──────────────────┘          └─────┬──────┬──────┬──────┘
+                                     │      │      │
+                    ┌────────────────┘      │      └────────────────┐
+                    │                       │                       │
+                    ▼                       ▼                       ▼
+ ┌────────────────────────┐  ┌────────────────────┐  ┌────────────────────────┐
+ │ user_balance_          │  │     sessions       │  │       orders            │
+ │ transactions           │  ├────────────────────┤  ├────────────────────────┤
+ ├────────────────────────┤  │ PK id          INT │  │ PK id            INT   │
+ │ PK id           INT    │  │ FK user_id     INT │  │ FK user_id       INT   │
+ │ FK user_id      INT    │  │ FK category_id INT │  │    discount      INT   │
+ │    amount       INT    │  │    start_time  TS  │  │    order_status  INT   │
+ │    type         INT    │  │    end_time    TS  │  │    order_date    DATE  │
+ │    1=DEPOSIT           │  │    price/h     INT │  │    total_amount  INT   │
+ │    2=ORDER_PAYMENT     │  │    status      INT │  │                        │
+ │    3=SESSION_PAYMENT   │  │    1=ACTIVE        │  │  1=NEW  2=DONE  3=CANCEL│
+ │    description  VCR    │  │    2=EXPIRED       │  └───────────┬────────────┘
+ │    created_at   TS     │  │    3=CANCELLED     │              │
+ └────────────────────────┘  └────────────────────┘              │ 1:N
+                                                                 ▼
+ ┌────────────────────────┐                       ┌────────────────────────┐
+ │       items            │                       │      order_item        │
+ ├────────────────────────┤                       ├────────────────────────┤
+ │ PK id          INT     │◄──────────────────────┤ PK,FK order_id   INT   │
+ │    name        VCR     │                       │ PK,FK item_id    INT   │
+ │    price       INT     │                       │       quantity   INT   │
+ │    item_type   INT     │                       │       price      INT   │
+ │    1=FOOD  2=DRINK     │                       └────────────────────────┘
+ └───────────┬────────────┘
+             │
+             │◄─────────────────────────────────┐
+             ▼                                  │
+ ┌────────────────────────┐                     │
+ │      cart_item         │        users.id ────►│
+ ├────────────────────────┤                      │
+ │ PK,FK user_id    INT   │──────────────────────┘
+ │ PK,FK item_id    INT   │
+ │       quantity   INT   │
+ └────────────────────────┘
+```
+
+### Quan hệ giữa các bảng
+
+```
+categories  (1) ◄──── (N)  users                    Mỗi user thuộc 1 gói
+users       (1) ────► (N)  user_balance_transactions Mỗi user có nhiều giao dịch
+users       (1) ────► (N)  sessions                  Mỗi user có nhiều phiên
+users       (1) ────► (N)  orders                    Mỗi user có nhiều đơn hàng
+users       (1) ────► (N)  cart_item                 Mỗi user có nhiều item trong giỏ
+categories  (1) ◄──── (N)  sessions                  Mỗi phiên thuộc 1 gói cước
+orders      (1) ────► (N)  order_item                Mỗi đơn hàng có nhiều item
+items       (1) ◄──── (N)  order_item                Mỗi item thuộc nhiều đơn hàng
+items       (1) ◄──── (N)  cart_item                 Mỗi item có trong nhiều giỏ hàng
+```
+
+---
+
+## 📝 Chi tiết các bảng
+
+### `categories` — Gói cước internet
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| `id` | INTEGER | PK, AUTO | Mã gói |
+| `name` | VARCHAR(50) | NOT NULL | Tên gói: NORMAL / VIP / VVIP |
+| `price_per_hour` | INTEGER | NOT NULL | Đơn giá mỗi giờ (VNĐ) |
+
+### `users` — Tài khoản người dùng
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| `id` | INTEGER | PK, AUTO | Mã người dùng |
+| `username` | VARCHAR(50) | NOT NULL, UNIQUE | Tên đăng nhập |
+| `full_name` | VARCHAR(255) | NOT NULL | Họ tên |
+| `password` | VARCHAR(255) | NOT NULL | Mật khẩu |
+| `balance` | INTEGER | NOT NULL, DEFAULT 0 | Số dư hiện tại (VNĐ) |
+| `category_id` | INTEGER | FK → categories | Gói cước đang dùng |
+| `created_at` | TIMESTAMP | NOT NULL | Thời điểm tạo tài khoản |
+
+### `user_balance_transactions` — Lịch sử giao dịch số dư
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| `id` | INTEGER | PK, AUTO | Mã giao dịch |
+| `user_id` | INTEGER | FK → users | Người dùng |
+| `amount` | INTEGER | NOT NULL | Số tiền (+ nạp, − trừ) |
+| `type` | INTEGER | NOT NULL | 1=Nạp tiền, 2=Thanh toán đơn hàng, 3=Thanh toán phiên |
+| `description` | VARCHAR(255) | | Ghi chú |
+| `created_at` | TIMESTAMP | NOT NULL | Thời điểm giao dịch |
+
+### `sessions` — Phiên sử dụng internet
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| `id` | INTEGER | PK, AUTO | Mã phiên |
+| `user_id` | INTEGER | FK → users | Người dùng |
+| `category_id` | INTEGER | FK → categories | Gói cước tại thời điểm bắt đầu |
+| `start_time` | TIMESTAMP | NOT NULL | Thời điểm bắt đầu |
+| `end_time` | TIMESTAMP | NULL nếu đang active | Thời điểm kết thúc |
+| `price_per_hour` | INTEGER | NOT NULL | Snapshot giá/giờ lúc bắt đầu |
+| `status` | INTEGER | NOT NULL | 1=Đang dùng, 2=Hết hạn, 3=Đã hủy |
+
+### `items` — Menu đồ ăn / thức uống
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| `id` | INTEGER | PK, AUTO | Mã món |
+| `name` | VARCHAR(255) | NOT NULL | Tên món |
+| `price` | INTEGER | NOT NULL | Giá (VNĐ) |
+| `item_type` | INTEGER | | 1=Đồ ăn, 2=Thức uống |
+
+### `cart_item` — Giỏ hàng
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| `user_id` | INTEGER | PK, FK → users | Người dùng |
+| `item_id` | INTEGER | PK, FK → items | Món hàng |
+| `quantity` | INTEGER | NOT NULL | Số lượng |
+
+### `orders` — Đơn hàng
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| `id` | INTEGER | PK, AUTO | Mã đơn |
+| `user_id` | INTEGER | FK → users | Người đặt |
+| `discount` | INTEGER | NOT NULL, DEFAULT 0 | Giảm giá (VNĐ) |
+| `order_status` | INTEGER | NOT NULL | 1=Mới, 2=Hoàn thành, 3=Đã hủy |
+| `order_date` | DATE | NOT NULL | Ngày đặt |
+| `total_amount` | INTEGER | | Tổng tiền sau giảm giá |
+
+### `order_item` — Chi tiết đơn hàng
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|-------|
+| `order_id` | INTEGER | PK, FK → orders | Mã đơn |
+| `item_id` | INTEGER | PK, FK → items | Mã món |
+| `quantity` | INTEGER | NOT NULL | Số lượng |
+| `price` | INTEGER | NOT NULL | Giá tại thời điểm đặt |
+
+---
+
+## 🌐 REST API
+
+### 👤 Quản lý người dùng (`/user`)
+
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| `POST` | `/user` | Tạo tài khoản mới |
+| `GET` | `/user` | Danh sách tất cả người dùng |
+| `GET` | `/user/{id}` | Thông tin user (kèm thời gian còn lại) |
+| `GET` | `/user/username/{username}` | Tìm user theo username |
+| `POST` | `/user/deposit` | Nạp tiền vào tài khoản |
+| `PUT` | `/user/{id}/category?category=VIP` | Đổi gói cước |
+| `GET` | `/user/{id}/transactions` | Lịch sử giao dịch |
+
+**Tạo tài khoản:**
+```json
+POST /user
+{
+  "username": "player01",
+  "fullName": "Nguyen Van A",
+  "password": "123456",
+  "category": "VIP"
+}
+```
+
+**Nạp tiền:**
+```json
+POST /user/deposit
+{
+  "userId": 1,
+  "amount": 200000,
+  "description": "Nạp tiền tại quầy"
+}
+```
+
+### 🖥️ Quản lý phiên internet (`/session`)
+
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| `POST` | `/session/start/{userId}` | Bắt đầu phiên (bắt đầu tính giờ) |
+| `POST` | `/session/end/{userId}` | Kết thúc phiên (trừ tiền theo giờ dùng) |
+| `GET` | `/session/time-remaining/{userId}` | Xem thời gian còn lại |
+| `GET` | `/session/history/{userId}` | Lịch sử các phiên |
+
+**Response mẫu — Thời gian còn lại:**
+```json
+GET /session/time-remaining/1
+{
+  "userId": 1,
+  "username": "hblab",
+  "category": "NORMAL",
+  "balance": 500000,
+  "pricePerHour": 10000,
+  "remainingHours": 50,
+  "remainingMinutes": 0,
+  "remainingTimeFormatted": "50h 0m",
+  "hasActiveSession": false
+}
+```
+
+### 🍔 Menu đồ ăn / thức uống (`/item`)
+
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| `GET` | `/item/search` | Tất cả món |
+| `GET` | `/item/search?key=cà phê` | Tìm theo tên |
+| `GET` | `/item/search?key=33` | Tìm theo id hoặc tên chứa "33" |
+| `GET` | `/item/food` | Chỉ đồ ăn |
+| `GET` | `/item/drink` | Chỉ thức uống |
+
+### 🛒 Giỏ hàng (`/cart`)
+
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| `GET` | `/cart?userId=1` | Xem giỏ hàng |
+| `POST` | `/cart/quantity` | Thêm/sửa/xóa món trong giỏ |
+
+```json
+POST /cart/quantity
+{ "userId": 1, "itemId": 33, "quantity": 2 }   // Thêm 2 ly cà phê đen đá
+{ "userId": 1, "itemId": 33, "quantity": 5 }   // Sửa thành 5 ly
+{ "userId": 1, "itemId": 33, "quantity": 0 }   // Xóa khỏi giỏ
+```
+
+### 📦 Đơn hàng (`/order`)
+
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| `POST` | `/order` | Tạo đơn từ giỏ hàng (trừ tiền, xóa giỏ) |
+| `GET` | `/order/search` | Tất cả đơn hàng |
+| `GET` | `/order/search?userId=1` | Đơn hàng theo user |
+| `GET` | `/order/search?orderStatus=NEW` | Đơn hàng theo trạng thái |
+
+```json
+POST /order
+{ "userId": 1, "discount": 5000 }
+```
+
+---
+
+## 📊 SQL mẫu
+
+### Xem thời gian còn lại của user
 ```sql
-SELECT
-    u.username,
-    u.balance,
-    c.name AS category,
-    c.price_per_hour,
-    u.balance / c.price_per_hour AS remaining_hours,
-    (u.balance % c.price_per_hour) * 60 / c.price_per_hour AS remaining_minutes
+SELECT u.username, u.balance, c.name AS category, c.price_per_hour,
+       u.balance / c.price_per_hour AS remaining_hours,
+       (u.balance % c.price_per_hour) * 60 / c.price_per_hour AS remaining_minutes
 FROM users u
 JOIN categories c ON u.category_id = c.id
-WHERE u.id = :userId;
+WHERE u.id = 1;
 ```
 
-#### Top 3 users by total spending (Câu 3.1)
+### Top 3 user chi tiêu nhiều nhất
 ```sql
-SELECT
-    sub.user_id,
-    SUM(sub.order_total) AS total_spent
+SELECT sub.user_id, SUM(sub.order_total) AS total_spent
 FROM (
-    SELECT
-        o.id AS order_id,
-        o.user_id,
-        COALESCE(SUM(oi.quantity * oi.price), 0) - o.discount AS order_total
+    SELECT o.id, o.user_id,
+           COALESCE(SUM(oi.quantity * oi.price), 0) - o.discount AS order_total
     FROM orders o
     LEFT JOIN order_item oi ON o.id = oi.order_id
-    WHERE o.order_status = 2
+    WHERE o.order_status = 2  -- Chỉ tính đơn DONE
     GROUP BY o.id, o.user_id, o.discount
 ) sub
 GROUP BY sub.user_id
@@ -295,54 +513,17 @@ ORDER BY total_spent DESC
 LIMIT 3;
 ```
 
-#### Top 5 items by revenue in Q4 2025 (Câu 3.2)
+### Top 5 món bán chạy nhất Q4/2025
 ```sql
-SELECT
-    oi.item_id,
-    i.name AS item_name,
-    SUM(oi.quantity) AS total_quantity,
-    SUM(oi.quantity * oi.price) AS total_revenue
+SELECT oi.item_id, i.name, SUM(oi.quantity) AS total_qty,
+       SUM(oi.quantity * oi.price) AS total_revenue
 FROM order_item oi
 JOIN orders o ON oi.order_id = o.id
 JOIN items i ON oi.item_id = i.id
 WHERE o.order_status = 2
-  AND o.order_date >= '2025-10-01'
-  AND o.order_date <= '2025-12-31'
+  AND o.order_date BETWEEN '2025-10-01' AND '2025-12-31'
 GROUP BY oi.item_id, i.name
 ORDER BY total_revenue DESC
 LIMIT 5;
 ```
-
----
-
-## REST APIs
-
-#### 1. `GET /item/search` — Search items
-- `GET /item/search` → all items
-- `GET /item/search?key=abc` → items with name containing "abc"
-- `GET /item/search?key=123` → item id=123 + items with name containing "123"
-
-#### 2. `GET /order/search` — Search orders
-- `GET /order/search` → all orders
-- `GET /order/search?userId=hblab` → orders by user
-- `GET /order/search?orderStatus=NEW` → orders by status
-- `GET /order/search?userId=hblab&orderStatus=CANCEL` → combined filter
-
-#### 3. `GET /cart` — Get cart items
-- `GET /cart?userId=hblab` → cart items with item id, name, price, quantity
-
-#### 4. `POST /cart/quantity` — Update cart quantity
-```json
-{ "userId": "hblab", "itemId": 1, "quantity": 3 }
-```
-- New item → insert
-- Existing item → update quantity
-- quantity = 0 → remove from cart
-
-#### 5. `POST /order` — Create order from cart
-```json
-{ "userId": "hblab", "discount": 5000 }
-```
-- Creates order with items from cart
-- Clears the cart after order creation
 
