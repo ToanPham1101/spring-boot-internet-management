@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   flyway-check:
-    name: 🗄 Flyway Migration Check
+    name: Flyway Migration Check
     runs-on: ubuntu-latest
 
     steps:
@@ -21,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 🔍 Validate Flyway migration conventions
+      - name: Validate Flyway migration conventions
         run: |
           MIGRATION_DIR="src/main/resources/db/migration"
           ERRORS=()
@@ -32,7 +32,7 @@ jobs:
 
           # ── Check 1: Migration directory exists ──
           if [ ! -d "$MIGRATION_DIR" ]; then
-            echo "❌ Migration directory not found: $MIGRATION_DIR"
+            echo "Migration directory not found: $MIGRATION_DIR"
             exit 1
           fi
 
@@ -42,23 +42,23 @@ jobs:
           for file in "$MIGRATION_DIR"/*.sql; do
             filename=$(basename "$file")
             if [[ ! "$filename" =~ ^V[0-9]+__[a-z][a-z0-9_]*\.sql$ ]]; then
-              ERRORS+=("❌ Invalid filename: '$filename' — must match V{N}__{lowercase_description}.sql")
+              ERRORS+=("Invalid filename: '$filename' — must match V{N}__{lowercase_description}.sql")
             else
-              echo "  ✅ $filename"
+              echo "  $filename"
             fi
           done
 
           # ── Check 3: No duplicate version numbers ──
           echo ""
-          echo "📋 Check: Duplicate version numbers"
+          echo "Check: Duplicate version numbers"
           VERSIONS=$(ls "$MIGRATION_DIR"/V*.sql 2>/dev/null | sed 's/.*\/V\([0-9]*\)__.*/\1/' | sort -n)
           DUPLICATES=$(echo "$VERSIONS" | uniq -d)
           if [ -n "$DUPLICATES" ]; then
             for dup in $DUPLICATES; do
-              ERRORS+=("❌ Duplicate Flyway version: V${dup}")
+              ERRORS+=("Duplicate Flyway version: V${dup}")
             done
           else
-            echo "  ✅ No duplicate versions"
+            echo "  No duplicate versions"
           fi
 
           # ── Check 4: No gaps in version sequence ──
@@ -68,44 +68,44 @@ jobs:
           for ver in $VERSIONS; do
             EXPECTED=$((PREV + 1))
             if [ "$ver" -ne "$EXPECTED" ]; then
-              ERRORS+=("❌ Version gap: expected V${EXPECTED} but found V${ver}")
+              ERRORS+=("Version gap: expected V${EXPECTED} but found V${ver}")
             fi
             PREV=$ver
           done
           if [ ${#ERRORS[@]} -eq 0 ] || ! printf '%s\n' "${ERRORS[@]}" | grep -q "Version gap"; then
-            echo "  ✅ Versions are sequential (V1 → V${PREV})"
+            echo "   Versions are sequential (V1 → V${PREV})"
           fi
 
           # ── Check 5: No empty migration files ──
           echo ""
-          echo "📋 Check: Empty migration files"
+          echo "Check: Empty migration files"
           for file in "$MIGRATION_DIR"/*.sql; do
             filename=$(basename "$file")
             # Strip comments and blank lines, check if anything remains
             content=$(grep -v '^\s*--' "$file" | grep -v '^\s*$' | head -1)
             if [ -z "$content" ]; then
-              ERRORS+=("❌ Empty migration file: $filename (no SQL statements)")
+              ERRORS+=("Empty migration file: $filename (no SQL statements)")
             else
-              echo "  ✅ $filename has content"
+              echo "   $filename has content"
             fi
           done
 
           # ── Check 6: Each file ends with semicolon (valid SQL) ──
           echo ""
-          echo "📋 Check: SQL files end with semicolon"
+          echo "Check: SQL files end with semicolon"
           for file in "$MIGRATION_DIR"/*.sql; do
             filename=$(basename "$file")
             last_stmt=$(grep -v '^\s*--' "$file" | grep -v '^\s*$' | tail -1)
             if [[ ! "$last_stmt" =~ \;[[:space:]]*$ ]]; then
-              ERRORS+=("❌ File '$filename' — last SQL statement does not end with ';'")
+              ERRORS+=("File '$filename' — last SQL statement does not end with ';'")
             else
-              echo "  ✅ $filename"
+              echo "   $filename"
             fi
           done
 
           # ── Check 7: No modified existing migrations (on PRs only) ──
           echo ""
-          echo "📋 Check: Existing migrations not modified"
+          echo "Check: Existing migrations not modified"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             CHANGED_MIGRATIONS=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- "$MIGRATION_DIR" | grep '\.sql$' || true)
             if [ -n "$CHANGED_MIGRATIONS" ]; then
@@ -117,14 +117,14 @@ jobs:
                   BASE_HASH=$(git show origin/${{ github.base_ref }}:"$changed" | sha256sum | cut -d' ' -f1)
                   HEAD_HASH=$(sha256sum "$changed" | cut -d' ' -f1)
                   if [ "$BASE_HASH" != "$HEAD_HASH" ]; then
-                    ERRORS+=("❌ Modified existing migration: '$filename' — Flyway migrations are immutable! Create a new version instead.")
+                    ERRORS+=("Modified existing migration: '$filename' — Flyway migrations are immutable! Create a new version instead.")
                   fi
                 else
-                  echo "  ✅ New migration: $filename"
+                  echo "  New migration: $filename"
                 fi
               done
             else
-              echo "  ✅ No migration files changed"
+              echo "  No migration files changed"
             fi
           else
             echo "  ⏭ Skipped (not a pull request)"
@@ -134,19 +134,19 @@ jobs:
           echo ""
           echo "=========================================="
           if [ ${#ERRORS[@]} -gt 0 ]; then
-            echo "❌ FAILED — ${#ERRORS[@]} error(s) found:"
+            echo "FAILED — ${#ERRORS[@]} error(s) found:"
             echo "=========================================="
             for err in "${ERRORS[@]}"; do
               echo "  $err"
             done
             exit 1
           else
-            echo "✅ ALL CHECKS PASSED"
+            echo "ALL CHECKS PASSED"
             echo "=========================================="
           fi
 
   build-and-test:
-    name: 🏗 Build & Test
+    name: Build & Test
     runs-on: ubuntu-latest
     needs: flyway-check
 
