@@ -22,7 +22,7 @@ Hệ thống quản lý quán internet — quản lý tài khoản người dùn
 | **Framework** | Spring Boot | 3.1.0 | Framework chính — auto-configuration, embedded server |
 | **Web** | Spring Web (MVC) | — | Xây dựng REST API, xử lý HTTP request/response |
 | **ORM** | Spring Data JPA + Hibernate | — | Tương tác database qua Entity/Repository pattern |
-| **Database** | H2 (in-memory) | — | DB nhúng dùng cho demo/test, có thể thay bằng PostgreSQL/MySQL |
+| **Database** | PostgreSQL | 16 | Database quan hệ chạy qua Docker |
 | **DB Migration** | Flyway | — | Quản lý phiên bản database — tự động migrate khi khởi động |
 | **Build tool** | Gradle | 8.5 | Quản lý dependency, build, test |
 | **Code gen** | Lombok | 1.18.30 | Tự sinh getter/setter/constructor qua annotation (`@Data`, `@Getter`...) |
@@ -32,7 +32,7 @@ Hệ thống quản lý quán internet — quản lý tài khoản người dùn
 
 - **Spring Boot** — framework phổ biến nhất cho Java backend, cộng đồng lớn, hệ sinh thái phong phú
 - **Flyway** — quản lý database migration theo version, đảm bảo schema nhất quán giữa các môi trường (dev/staging/prod). Mỗi lần thay đổi DB tạo 1 file migration mới, có thể rollback và audit
-- **H2 in-memory** — DB nhúng, không cần cài đặt, phù hợp demo & test nhanh. Khi lên production chỉ cần đổi datasource URL sang PostgreSQL/MySQL
+- **PostgreSQL** — database quan hệ mạnh mẽ, miễn phí, phù hợp production. Chạy qua Docker container, dễ dàng setup và reset
 - **JPA/Hibernate** — ORM tiêu chuẩn, map Java object ↔ database table, giảm viết SQL thủ công
 - **Lombok** — giảm boilerplate code (getter, setter, constructor), code gọn hơn
 - **Swagger** — documentation tự động, có thể test API ngay trên trình duyệt
@@ -45,7 +45,6 @@ Hệ thống quản lý quán internet — quản lý tài khoản người dùn
 src/main/
 ├── java/item/
 │   ├── ItemApplication.java        
-│   ├── H2Config.java                 
 │   │
 │   ├── entity/                          
 │   │   ├── CategoryEntity.java           #   Bảng categories (NORMAL/VIP/VVIP)
@@ -116,19 +115,35 @@ src/main/
 
 ## 🚀 Cách chạy
 
+**Yêu cầu:** Docker & Docker Compose đã cài sẵn.
+
+**Bước 1:** Khởi động PostgreSQL container
+
+```bash
+docker-compose up -d
 ```
+
+**Bước 2:** Chạy Spring Boot
+
+```bash
 ./gradlew bootRun
 ```
 
-Sau khi khởi động:
-| Tài nguyên | URL |
-|-----------|-----|
-| **Swagger UI** (xem & test API) | http://localhost:8080 |
-| **H2 Console** (xem database) | http://localhost:8080/h2 |
-| H2 JDBC URL | `jdbc:h2:mem:test` |
-| H2 Username / Password | `sa` / `123456` |
+| Tài nguyên | URL / Thông tin |
+|-----------|-----------------|
+| **Swagger UI** | http://localhost:8080 |
+| **PostgreSQL** | `localhost:5432` |
+| Database name | `internetshop` |
+| Username / Password | `postgres` / `postgres123` |
 
-> 💡 Khi app khởi động, **Flyway** tự động chạy các file migration theo thứ tự phiên bản (V1 → V2 → V3 → V4 → V5). Database được tạo và seed dữ liệu mẫu tự động.
+**Dừng PostgreSQL:**
+
+```bash
+docker-compose down          # Dừng container (giữ dữ liệu)
+docker-compose down -v       # Dừng container + xóa dữ liệu (reset DB)
+```
+
+> 💡 Khi app khởi động, **Flyway** tự động chạy các file migration theo thứ tự phiên bản (V1 → V2 → V3 → V4 → V5). Database được tạo schema và seed dữ liệu mẫu tự động — không cần chạy SQL thủ công.
 
 ---
 
@@ -267,25 +282,16 @@ spring.jpa.hibernate.ddl-auto=validate
 spring.sql.init.mode=never
 ```
 
-### Chuyển sang PostgreSQL / MySQL (production)
-
-Chỉ cần đổi datasource trong `application.properties`:
+### Cấu hình PostgreSQL trong `application.properties`
 
 ```properties
-# PostgreSQL
 spring.datasource.url=jdbc:postgresql://localhost:5432/internetshop
 spring.datasource.username=postgres
-spring.datasource.password=secret
+spring.datasource.password=postgres123
 spring.datasource.driver-class-name=org.postgresql.Driver
-
-# MySQL
-spring.datasource.url=jdbc:mysql://localhost:3306/internetshop
-spring.datasource.username=root
-spring.datasource.password=secret
-spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
 ```
 
-> ⚠️ Lưu ý: SQL syntax trong migration cần tương thích với DB đích. H2 `MODE=PostgreSQL` đã giúp tương thích phần lớn syntax.
+> 💡 Flyway migration files tương thích với PostgreSQL. Khi app khởi động, Flyway tự động chạy các file migration theo thứ tự phiên bản.
 
 ---
 
