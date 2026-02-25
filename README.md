@@ -579,7 +579,7 @@ POST /user/deposit
 GET /session/time-remaining/1
 {
   "userId": 1,
-  "username": "hblab",
+  "username": "ToanPDT",
   "category": "NORMAL",
   "balance": 500000,
   "pricePerHour": 10000,

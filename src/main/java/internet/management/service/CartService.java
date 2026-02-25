@@ -1,0 +1,74 @@
+package internet.management.service;
+
+import internet.management.entity.CartItemEntity;
+import internet.management.entity.CartItemId;
+import internet.management.entity.ItemEntity;
+import internet.management.model.GetCartQuery;
+import internet.management.model.GetCartResult;
+import internet.management.model.UpdateCartQuantityCommand;
+import internet.management.repository.CartItemRepository;
+import internet.management.repository.service.ItemRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Service
+public class CartService {
+
+    private final CartItemRepository cartItemRepository;
+    private final ItemRepository itemRepository;
+
+    public CartService(CartItemRepository cartItemRepository, ItemRepository itemRepository) {
+        this.cartItemRepository = cartItemRepository;
+        this.itemRepository = itemRepository;
+    }
+
+    public GetCartResult getCart(GetCartQuery query) {
+        List<CartItemEntity> cartItems = cartItemRepository.findByUserId(query.getUserId());
+
+        List<Integer> itemIds = cartItems.stream()
+                .map(CartItemEntity::getItemId)
+                .collect(Collectors.toList());
+
+        Map<Integer, ItemEntity> itemMap = itemRepository.findAllById(itemIds).stream()
+                .collect(Collectors.toMap(ItemEntity::getId, i -> i));
+
+        GetCartResult result = new GetCartResult();
+        result.setItems(cartItems.stream().map(cartItem -> {
+            GetCartResult.Item item = new GetCartResult.Item();
+            item.setItemId(cartItem.getItemId());
+            item.setQuantity(cartItem.getQuantity());
+
+            ItemEntity itemEntity = itemMap.get(cartItem.getItemId());
+            if (itemEntity != null) {
+                item.setItemName(itemEntity.getName());
+                item.setItemPrice(itemEntity.getPrice());
+            }
+            return item;
+        }).collect(Collectors.toList()));
+
+        return result;
+    }
+
+    @Transactional
+    public void updateQuantity(UpdateCartQuantityCommand command) {
+        CartItemId id = new CartItemId(command.getUserId(), command.getItemId());
+
+        if (command.getQuantity() == null || command.getQuantity() <= 0) {
+            cartItemRepository.deleteById(id);
+        } else {
+            CartItemEntity cartItem = cartItemRepository.findById(id).orElse(null);
+            if (cartItem == null) {
+                cartItem = new CartItemEntity();
+                cartItem.setUserId(command.getUserId());
+                cartItem.setItemId(command.getItemId());
+            }
+            cartItem.setQuantity(command.getQuantity());
+            cartItemRepository.save(cartItem);
+        }
+    }
+}
+
