@@ -6,7 +6,6 @@ plugins {
 
 group = 'internet.management'
 version = '0.0.1-TEST'
-sourceCompatibility = '17'
 
 configurations {
     compileOnly {
