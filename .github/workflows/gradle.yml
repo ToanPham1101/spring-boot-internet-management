@@ -1,0 +1,215 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flyway-check:
+    name: 🗄 Flyway Migration Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔍 Validate Flyway migration conventions
+        run: |
+          MIGRATION_DIR="src/main/resources/db/migration"
+          ERRORS=()
+
+          echo "=========================================="
+          echo "  Flyway Migration Convention Checker"
+          echo "=========================================="
+
+          # ── Check 1: Migration directory exists ──
+          if [ ! -d "$MIGRATION_DIR" ]; then
+            echo "❌ Migration directory not found: $MIGRATION_DIR"
+            exit 1
+          fi
+
+          # ── Check 2: All files follow naming convention V{N}__{description}.sql ──
+          echo ""
+          echo "Check: Naming convention (V{N}__{description}.sql)"
+          for file in "$MIGRATION_DIR"/*.sql; do
+            filename=$(basename "$file")
+            if [[ ! "$filename" =~ ^V[0-9]+__[a-z][a-z0-9_]*\.sql$ ]]; then
+              ERRORS+=("❌ Invalid filename: '$filename' — must match V{N}__{lowercase_description}.sql")
+            else
+              echo "  ✅ $filename"
+            fi
+          done
+
+          # ── Check 3: No duplicate version numbers ──
+          echo ""
+          echo "📋 Check: Duplicate version numbers"
+          VERSIONS=$(ls "$MIGRATION_DIR"/V*.sql 2>/dev/null | sed 's/.*\/V\([0-9]*\)__.*/\1/' | sort -n)
+          DUPLICATES=$(echo "$VERSIONS" | uniq -d)
+          if [ -n "$DUPLICATES" ]; then
+            for dup in $DUPLICATES; do
+              ERRORS+=("❌ Duplicate Flyway version: V${dup}")
+            done
+          else
+            echo "  ✅ No duplicate versions"
+          fi
+
+          # ── Check 4: No gaps in version sequence ──
+          echo ""
+          echo "Check: Version sequence continuity"
+          PREV=0
+          for ver in $VERSIONS; do
+            EXPECTED=$((PREV + 1))
+            if [ "$ver" -ne "$EXPECTED" ]; then
+              ERRORS+=("❌ Version gap: expected V${EXPECTED} but found V${ver}")
+            fi
+            PREV=$ver
+          done
+          if [ ${#ERRORS[@]} -eq 0 ] || ! printf '%s\n' "${ERRORS[@]}" | grep -q "Version gap"; then
+            echo "  ✅ Versions are sequential (V1 → V${PREV})"
+          fi
+
+          # ── Check 5: No empty migration files ──
+          echo ""
+          echo "📋 Check: Empty migration files"
+          for file in "$MIGRATION_DIR"/*.sql; do
+            filename=$(basename "$file")
+            # Strip comments and blank lines, check if anything remains
+            content=$(grep -v '^\s*--' "$file" | grep -v '^\s*$' | head -1)
+            if [ -z "$content" ]; then
+              ERRORS+=("❌ Empty migration file: $filename (no SQL statements)")
+            else
+              echo "  ✅ $filename has content"
+            fi
+          done
+
+          # ── Check 6: Each file ends with semicolon (valid SQL) ──
+          echo ""
+          echo "📋 Check: SQL files end with semicolon"
+          for file in "$MIGRATION_DIR"/*.sql; do
+            filename=$(basename "$file")
+            last_stmt=$(grep -v '^\s*--' "$file" | grep -v '^\s*$' | tail -1)
+            if [[ ! "$last_stmt" =~ \;[[:space:]]*$ ]]; then
+              ERRORS+=("❌ File '$filename' — last SQL statement does not end with ';'")
+            else
+              echo "  ✅ $filename"
+            fi
+          done
+
+          # ── Check 7: No modified existing migrations (on PRs only) ──
+          echo ""
+          echo "📋 Check: Existing migrations not modified"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANGED_MIGRATIONS=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- "$MIGRATION_DIR" | grep '\.sql$' || true)
+            if [ -n "$CHANGED_MIGRATIONS" ]; then
+              for changed in $CHANGED_MIGRATIONS; do
+                filename=$(basename "$changed")
+                # Check if this file existed in the base branch
+                if git show origin/${{ github.base_ref }}:"$changed" &>/dev/null; then
+                  # File exists in base — check if content changed
+                  BASE_HASH=$(git show origin/${{ github.base_ref }}:"$changed" | sha256sum | cut -d' ' -f1)
+                  HEAD_HASH=$(sha256sum "$changed" | cut -d' ' -f1)
+                  if [ "$BASE_HASH" != "$HEAD_HASH" ]; then
+                    ERRORS+=("❌ Modified existing migration: '$filename' — Flyway migrations are immutable! Create a new version instead.")
+                  fi
+                else
+                  echo "  ✅ New migration: $filename"
+                fi
+              done
+            else
+              echo "  ✅ No migration files changed"
+            fi
+          else
+            echo "  ⏭ Skipped (not a pull request)"
+          fi
+
+          # ── Summary ──
+          echo ""
+          echo "=========================================="
+          if [ ${#ERRORS[@]} -gt 0 ]; then
+            echo "❌ FAILED — ${#ERRORS[@]} error(s) found:"
+            echo "=========================================="
+            for err in "${ERRORS[@]}"; do
+              echo "  $err"
+            done
+            exit 1
+          else
+            echo "✅ ALL CHECKS PASSED"
+            echo "=========================================="
+          fi
+
+  build-and-test:
+    name: 🏗 Build & Test
+    runs-on: ubuntu-latest
+    needs: flyway-check
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: internetshop
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres123
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d internetshop"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: ☕ Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Compile source code
+        run: ./gradlew compileJava
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/internetshop
+          SPRING_DATASOURCE_USERNAME: postgres
+          SPRING_DATASOURCE_PASSWORD: postgres123
+
+      - name: Run tests (Flyway migrate + JPA validate + unit tests)
+        run: ./gradlew test
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/internetshop
+          SPRING_DATASOURCE_USERNAME: postgres
+          SPRING_DATASOURCE_PASSWORD: postgres123
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: build/reports/tests/test/
+          retention-days: 7
+
+      - name: Build JAR
+        run: ./gradlew bootJar
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/internetshop
+          SPRING_DATASOURCE_USERNAME: postgres
+          SPRING_DATASOURCE_PASSWORD: postgres123
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-jar
+          path: build/libs/*.jar
+          retention-days: 7
