@@ -10,7 +10,7 @@ VALUES (1, 'NORMAL', 10000),
 
 -- Người dùng
 INSERT INTO users(id, username, full_name, password, balance, category_id)
-VALUES (1, 'hblab', 'HB Lab User', '123456', 500000, 1),
+VALUES (1, 'ToanPDT', 'HB Lab User', '123456', 500000, 1),
        (2, 'user_1', 'Nguyen Van A', '123456', 300000, 1),
        (3, 'user_2', 'Tran Thi B', '123456', 450000, 2),
        (4, 'user_3', 'Le Van C', '123456', 200000, 1),
