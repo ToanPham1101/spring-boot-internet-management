@@ -35,7 +35,7 @@
 
 ```
 ┌─────────────────────┐       ┌──────────────────────────────┐
-│       users          │       │        categories             │
+│       users         │       │        categories            │
 ├─────────────────────┤       ├──────────────────────────────┤
 │ PK  id         INT  │       │ PK  id            INT        │
 │     username   VCR  │       │     name          VCR        │
@@ -52,7 +52,7 @@
          │                                       │
          ▼                                       ▼
 ┌─────────────────────────────┐   ┌──────────────────────────────┐
-│  user_balance_transactions   │   │         sessions              │
+│  user_balance_transactions  │   │         sessions             │
 ├─────────────────────────────┤   ├──────────────────────────────┤
 │ PK  id              INT     │   │ PK  id             INT       │
 │ FK  user_id         VCR     │   │ FK  user_id        VCR       │
@@ -69,7 +69,7 @@
          │
          ▼
 ┌─────────────────────┐        ┌─────────────────────────────┐
-│      orders          │        │        items                 │
+│      orders         │        │        items                │
 ├─────────────────────┤        ├─────────────────────────────┤
 │ PK  id         INT  │        │ PK  id           INT        │
 │ FK  user_id    VCR  │        │     name         VCR        │
@@ -85,7 +85,7 @@
          │ 1:N                            │
          ▼                                │
 ┌──────────────────────────┐              │
-│      order_item           │              │
+│      order_item          │              │
 ├──────────────────────────┤              │
 │ PK,FK  order_id    INT   ├──────────────┘
 │ PK,FK  item_id     INT   │
@@ -94,11 +94,11 @@
 └──────────────────────────┘
 
 ┌─────────────────────┐
-│      cart_item       │
+│      cart_item      │
 ├─────────────────────┤
 │ PK,FK  user_id  VCR │──────> users.id
 │ PK,FK  item_id  INT │──────> items.id
-│        quantity INT  │
+│        quantity INT │
 └─────────────────────┘
 ```
 
