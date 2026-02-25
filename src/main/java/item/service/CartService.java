@@ -29,16 +29,13 @@ public class CartService {
     public GetCartResult getCart(GetCartQuery query) {
         List<CartItemEntity> cartItems = cartItemRepository.findByUserId(query.getUserId());
 
-        // Get all item ids from cart
         List<Integer> itemIds = cartItems.stream()
                 .map(CartItemEntity::getItemId)
                 .collect(Collectors.toList());
 
-        // Fetch item details
         Map<Integer, ItemEntity> itemMap = itemRepository.findAllById(itemIds).stream()
-                .collect(Collectors.toMap(ItemEntity::getId, item -> item));
+                .collect(Collectors.toMap(ItemEntity::getId, i -> i));
 
-        // Build result
         GetCartResult result = new GetCartResult();
         result.setItems(cartItems.stream().map(cartItem -> {
             GetCartResult.Item item = new GetCartResult.Item();
@@ -61,10 +58,8 @@ public class CartService {
         CartItemId id = new CartItemId(command.getUserId(), command.getItemId());
 
         if (command.getQuantity() == null || command.getQuantity() <= 0) {
-            // Remove item from cart
             cartItemRepository.deleteById(id);
         } else {
-            // Insert or update
             CartItemEntity cartItem = cartItemRepository.findById(id).orElse(null);
             if (cartItem == null) {
                 cartItem = new CartItemEntity();

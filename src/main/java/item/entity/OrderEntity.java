@@ -21,15 +21,19 @@ public class OrderEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @Column(length = 16)
-    private String userId;
+    @Column(name = "user_id", nullable = false)
+    private Integer userId;
 
     @Column(nullable = false)
-    private Integer discount;
+    private Integer discount = 0;
 
-    @Column(nullable = false)
+    @Column(name = "order_status", nullable = false)
     private Integer orderStatus;
 
-    @Column(nullable = false)
+    @Column(name = "order_date", nullable = false)
     private LocalDate orderDate;
+
+    @Column(name = "total_amount")
+    private Integer totalAmount;
 }
+

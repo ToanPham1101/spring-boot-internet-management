@@ -4,18 +4,25 @@ import item.entity.CartItemEntity;
 import item.entity.ItemEntity;
 import item.entity.OrderEntity;
 import item.entity.OrderItemEntity;
+import item.entity.UserBalanceTransactionEntity;
+import item.entity.UserEntity;
 import item.model.CreateOrderCommand;
+import item.model.ItemType;
 import item.model.OrderStatus;
 import item.model.SearchOrdersQuery;
 import item.model.SearchOrdersResult;
+import item.model.TransactionType;
 import item.repository.CartItemRepository;
 import item.repository.OrderItemRepository;
 import item.repository.OrderRepository;
+import item.repository.UserBalanceTransactionRepository;
+import item.repository.UserRepository;
 import item.repository.service.ItemRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,80 +35,81 @@ public class OrderService {
     private final OrderItemRepository orderItemRepository;
     private final CartItemRepository cartItemRepository;
     private final ItemRepository itemRepository;
+    private final UserRepository userRepository;
+    private final UserBalanceTransactionRepository transactionRepository;
 
     public OrderService(OrderRepository orderRepository,
                         OrderItemRepository orderItemRepository,
                         CartItemRepository cartItemRepository,
-                        ItemRepository itemRepository) {
+                        ItemRepository itemRepository,
+                        UserRepository userRepository,
+                        UserBalanceTransactionRepository transactionRepository) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.cartItemRepository = cartItemRepository;
         this.itemRepository = itemRepository;
+        this.userRepository = userRepository;
+        this.transactionRepository = transactionRepository;
     }
 
     public SearchOrdersResult searchOrders(SearchOrdersQuery query) {
         Integer orderStatusValue = query.getOrderStatus() != null ? query.getOrderStatus().getValue() : null;
-
         List<OrderEntity> orders = orderRepository.searchOrders(query.getUserId(), orderStatusValue);
 
-        // Get all order ids
-        List<Integer> orderIds = orders.stream()
-                .map(OrderEntity::getId)
-                .collect(Collectors.toList());
+        List<Integer> orderIds = orders.stream().map(OrderEntity::getId).collect(Collectors.toList());
 
-        // Fetch all order items for these orders
         List<OrderItemEntity> allOrderItems = orderIds.isEmpty()
                 ? new ArrayList<>()
                 : orderItemRepository.findByOrderIdIn(orderIds);
 
-        // Group order items by order id
         Map<Integer, List<OrderItemEntity>> orderItemsMap = allOrderItems.stream()
                 .collect(Collectors.groupingBy(OrderItemEntity::getOrderId));
 
-        // Get all item ids for names
         List<Integer> itemIds = allOrderItems.stream()
-                .map(OrderItemEntity::getItemId)
-                .distinct()
-                .collect(Collectors.toList());
+                .map(OrderItemEntity::getItemId).distinct().collect(Collectors.toList());
 
-        Map<Integer, ItemEntity> itemMap = itemIds.isEmpty()
-                ? Map.of()
+        Map<Integer, ItemEntity> itemMap = itemIds.isEmpty() ? Map.of()
                 : itemRepository.findAllById(itemIds).stream()
-                .collect(Collectors.toMap(ItemEntity::getId, item -> item));
+                .collect(Collectors.toMap(ItemEntity::getId, i -> i));
 
-        // Build result
+        List<Integer> userIds = orders.stream()
+                .map(OrderEntity::getUserId).distinct().collect(Collectors.toList());
+
+        Map<Integer, UserEntity> userMap = userIds.isEmpty() ? Map.of()
+                : userRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(UserEntity::getId, u -> u));
+
         SearchOrdersResult result = new SearchOrdersResult();
         result.setOrders(orders.stream().map(order -> {
-            SearchOrdersResult.Order orderDto = new SearchOrdersResult.Order();
-            orderDto.setOrderId(order.getId());
-            orderDto.setUserId(order.getUserId());
-            orderDto.setOrderStatus(fromValue(order.getOrderStatus()));
-            orderDto.setDiscount(order.getDiscount());
+            SearchOrdersResult.Order dto = new SearchOrdersResult.Order();
+            dto.setOrderId(order.getId());
+            dto.setUserId(order.getUserId());
+            dto.setOrderStatus(fromValue(order.getOrderStatus()));
+            dto.setDiscount(order.getDiscount());
+
+            UserEntity user = userMap.get(order.getUserId());
+            if (user != null) {
+                dto.setUsername(user.getUsername());
+            }
 
             List<OrderItemEntity> orderItems = orderItemsMap.getOrDefault(order.getId(), new ArrayList<>());
-
-            List<SearchOrdersResult.OrderItem> itemDtos = orderItems.stream().map(oi -> {
+            dto.setItems(orderItems.stream().map(oi -> {
                 SearchOrdersResult.OrderItem itemDto = new SearchOrdersResult.OrderItem();
                 itemDto.setItemId(oi.getItemId());
                 itemDto.setQuantity(oi.getQuantity());
                 itemDto.setPrice(oi.getPrice());
-
-                ItemEntity itemEntity = itemMap.get(oi.getItemId());
-                if (itemEntity != null) {
-                    itemDto.setItemName(itemEntity.getName());
+                ItemEntity ie = itemMap.get(oi.getItemId());
+                if (ie != null) {
+                    itemDto.setItemName(ie.getName());
+                    itemDto.setItemType(ie.getItemType() != null ? ItemType.nameOf(ie.getItemType()) : null);
                 }
                 return itemDto;
-            }).collect(Collectors.toList());
+            }).collect(Collectors.toList()));
 
-            orderDto.setItems(itemDtos);
+            int total = orderItems.stream().mapToInt(oi -> oi.getQuantity() * oi.getPrice()).sum();
+            dto.setTotalAmount(total - order.getDiscount());
 
-            // totalAmount = sum(quantity * price) - discount
-            int totalBeforeDiscount = orderItems.stream()
-                    .mapToInt(oi -> oi.getQuantity() * oi.getPrice())
-                    .sum();
-            orderDto.setTotalAmount(totalBeforeDiscount - order.getDiscount());
-
-            return orderDto;
+            return dto;
         }).collect(Collectors.toList()));
 
         return result;
@@ -109,51 +117,69 @@ public class OrderService {
 
     @Transactional
     public void createOrder(CreateOrderCommand command) {
-        // 1. Get cart items
+        UserEntity user = userRepository.findById(command.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found: " + command.getUserId()));
+
         List<CartItemEntity> cartItems = cartItemRepository.findByUserId(command.getUserId());
         if (cartItems.isEmpty()) {
             throw new RuntimeException("Cart is empty for user: " + command.getUserId());
         }
 
-        // 2. Get item prices
-        List<Integer> itemIds = cartItems.stream()
-                .map(CartItemEntity::getItemId)
-                .collect(Collectors.toList());
-
+        List<Integer> itemIds = cartItems.stream().map(CartItemEntity::getItemId).collect(Collectors.toList());
         Map<Integer, ItemEntity> itemMap = itemRepository.findAllById(itemIds).stream()
-                .collect(Collectors.toMap(ItemEntity::getId, item -> item));
+                .collect(Collectors.toMap(ItemEntity::getId, i -> i));
 
-        // 3. Create order
-        OrderEntity order = new OrderEntity();
-        order.setUserId(command.getUserId());
-        order.setDiscount(command.getDiscount() != null ? command.getDiscount() : 0);
-        order.setOrderStatus(OrderStatus.NEW.getValue());
-        order.setOrderDate(LocalDate.now());
-        order = orderRepository.save(order);
+        int discount = command.getDiscount() != null ? command.getDiscount() : 0;
+        int totalBeforeDiscount = 0;
+        for (CartItemEntity ci : cartItems) {
+            ItemEntity item = itemMap.get(ci.getItemId());
+            if (item != null) {
+                totalBeforeDiscount += ci.getQuantity() * item.getPrice();
+            }
+        }
+        int totalAmount = Math.max(0, totalBeforeDiscount - discount);
 
-        // 4. Create order items
-        for (CartItemEntity cartItem : cartItems) {
-            OrderItemEntity orderItem = new OrderItemEntity();
-            orderItem.setOrderId(order.getId());
-            orderItem.setItemId(cartItem.getItemId());
-            orderItem.setQuantity(cartItem.getQuantity());
-
-            ItemEntity item = itemMap.get(cartItem.getItemId());
-            orderItem.setPrice(item != null ? item.getPrice() : 0);
-
-            orderItemRepository.save(orderItem);
+        if (user.getBalance() < totalAmount) {
+            throw new RuntimeException("Insufficient balance. Required: " + totalAmount
+                    + " VND, Available: " + user.getBalance() + " VND");
         }
 
-        // 5. Clear cart
+        OrderEntity order = new OrderEntity();
+        order.setUserId(command.getUserId());
+        order.setDiscount(discount);
+        order.setOrderStatus(OrderStatus.NEW.getValue());
+        order.setOrderDate(LocalDate.now());
+        order.setTotalAmount(totalAmount);
+        order = orderRepository.save(order);
+
+        for (CartItemEntity ci : cartItems) {
+            OrderItemEntity oi = new OrderItemEntity();
+            oi.setOrderId(order.getId());
+            oi.setItemId(ci.getItemId());
+            oi.setQuantity(ci.getQuantity());
+            ItemEntity item = itemMap.get(ci.getItemId());
+            oi.setPrice(item != null ? item.getPrice() : 0);
+            orderItemRepository.save(oi);
+        }
+
+        user.setBalance(user.getBalance() - totalAmount);
+        userRepository.save(user);
+
+        UserBalanceTransactionEntity tx = new UserBalanceTransactionEntity();
+        tx.setUserId(user.getId());
+        tx.setAmount(-totalAmount);
+        tx.setType(TransactionType.ORDER_PAYMENT.getValue());
+        tx.setDescription("Order #" + order.getId() + " - " + cartItems.size() + " items");
+        tx.setCreatedAt(LocalDateTime.now());
+        transactionRepository.save(tx);
+
         cartItemRepository.deleteByUserId(command.getUserId());
     }
 
     private OrderStatus fromValue(Integer value) {
         if (value == null) return null;
-        for (OrderStatus status : OrderStatus.values()) {
-            if (status.getValue() == value) {
-                return status;
-            }
+        for (OrderStatus s : OrderStatus.values()) {
+            if (s.getValue() == value) return s;
         }
         return null;
     }

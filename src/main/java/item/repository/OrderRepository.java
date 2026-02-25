@@ -14,7 +14,7 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Integer> {
     @Query("SELECT o FROM OrderEntity o WHERE " +
             "(:userId IS NULL OR o.userId = :userId) AND " +
             "(:orderStatus IS NULL OR o.orderStatus = :orderStatus)")
-    List<OrderEntity> searchOrders(@Param("userId") String userId,
+    List<OrderEntity> searchOrders(@Param("userId") Integer userId,
                                    @Param("orderStatus") Integer orderStatus);
 }
 

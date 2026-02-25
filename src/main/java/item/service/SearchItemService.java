@@ -1,8 +1,8 @@
 package item.service;
 
-import org.springframework.stereotype.Service;
 import item.entity.ItemEntity;
 import item.repository.service.ItemRepository;
+import org.springframework.stereotype.Service;
 
 import java.util.List;
 
@@ -17,36 +17,25 @@ public class SearchItemService {
 
     public List<ItemEntity> searchItems(String key) {
         if (key == null || key.isEmpty()) {
-            return searchAllItems();
+            return itemRepository.findAll();
         }
         if (isInteger(key)) {
-            return searchItemsByIdOrName(key);
+            return itemRepository.findByIdOrNameContaining(Integer.parseInt(key), key);
         }
-        return searchItemsByName(key);
+        return itemRepository.findByNameContainingIgnoreCase(key);
     }
 
-    private List<ItemEntity> searchAllItems() {
-        return itemRepository.findAll();
-    }
-
-    private List<ItemEntity> searchItemsByName(String name) {
-        return itemRepository.findByName(name);
-    }
-
-    private List<ItemEntity> searchItemsByIdOrName(String key) {
-        Integer id = Integer.parseInt(key);
-        return itemRepository.findByIdOrNameContaining(id, key);
+    public List<ItemEntity> searchByType(Integer itemType) {
+        return itemRepository.findByItemType(itemType);
     }
 
     public static boolean isInteger(String s) {
         try {
             Integer.parseInt(s);
-        } catch(NumberFormatException e) {
-            return false;
-        } catch(NullPointerException e) {
+        } catch (NumberFormatException | NullPointerException e) {
             return false;
         }
         return true;
     }
-
 }
+

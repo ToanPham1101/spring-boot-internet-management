@@ -1,37 +1,20 @@
 package item.model;
 
+import lombok.Data;
+
 import java.util.List;
 
+@Data
 public class SearchItemsResult {
 
     private List<Item> items;
 
-    public List<Item> getItems() {
-        return items;
-    }
-
-    public void setItems(List<Item> items) {
-        this.items = items;
-    }
-
+    @Data
     public static class Item {
         private Integer id;
         private String name;
-
-        public Integer getId() {
-            return id;
-        }
-
-        public void setId(Integer id) {
-            this.id = id;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public void setName(String name) {
-            this.name = name;
-        }
+        private Integer price;
+        private String itemType;
     }
 }
+

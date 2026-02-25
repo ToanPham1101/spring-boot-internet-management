@@ -12,20 +12,17 @@ import lombok.Setter;
 @Entity
 @Getter
 @Setter
-@Table(name = "items")
-public class ItemEntity {
+@Table(name = "categories")
+public class CategoryEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @Column(nullable = false)
+    @Column(length = 50, nullable = false)
     private String name;
 
-    @Column(nullable = false)
-    private Integer price;
-
-    @Column(name = "item_type")
-    private Integer itemType; // 1=FOOD, 2=DRINK
+    @Column(name = "price_per_hour", nullable = false)
+    private Integer pricePerHour;
 }
 

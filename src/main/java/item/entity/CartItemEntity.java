@@ -16,11 +16,11 @@ import lombok.Setter;
 public class CartItemEntity {
 
     @Id
-    @Column(name = "user_id", length = 16)
-    private String userId;
+    @Column(name = "user_id")
+    private Integer userId;
 
     @Id
-    @Column(name = "item_id", nullable = false)
+    @Column(name = "item_id")
     private Integer itemId;
 
     @Column(nullable = false)

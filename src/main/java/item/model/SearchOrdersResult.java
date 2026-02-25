@@ -12,7 +12,8 @@ public class SearchOrdersResult {
     @Data
     public static class Order {
         private Integer orderId;
-        private String userId;
+        private Integer userId;
+        private String username;
         private OrderStatus orderStatus;
         private Integer discount;
         private Integer totalAmount;
@@ -23,7 +24,9 @@ public class SearchOrdersResult {
     public static class OrderItem {
         private Integer itemId;
         private String itemName;
+        private String itemType;
         private Integer quantity;
         private Integer price;
     }
 }
+

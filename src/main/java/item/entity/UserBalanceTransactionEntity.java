@@ -9,23 +9,30 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Getter
 @Setter
-@Table(name = "items")
-public class ItemEntity {
+@Table(name = "user_balance_transactions")
+public class UserBalanceTransactionEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @Column(nullable = false)
-    private String name;
+    @Column(name = "user_id", nullable = false)
+    private Integer userId;
 
     @Column(nullable = false)
-    private Integer price;
+    private Integer amount;
 
-    @Column(name = "item_type")
-    private Integer itemType; // 1=FOOD, 2=DRINK
+    @Column(nullable = false)
+    private Integer type; // 1=DEPOSIT, 2=ORDER_PAYMENT, 3=SESSION_PAYMENT
+
+    private String description;
+
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
 }
 

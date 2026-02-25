@@ -4,5 +4,6 @@ import lombok.Data;
 
 @Data
 public class GetCartQuery {
-    private String userId;
+    private Integer userId;
 }
+

@@ -5,13 +5,13 @@ import java.util.Objects;
 
 public class CartItemId implements Serializable {
 
-    private String userId;
+    private Integer userId;
     private Integer itemId;
 
     public CartItemId() {
     }
 
-    public CartItemId(String userId, Integer itemId) {
+    public CartItemId(Integer userId, Integer itemId) {
         this.userId = userId;
         this.itemId = itemId;
     }

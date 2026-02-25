@@ -7,8 +7,9 @@ import lombok.Data;
 public class SearchOrdersQuery {
 
     @Nullable
-    private String userId;
+    private Integer userId;
 
     @Nullable
     private OrderStatus orderStatus;
 }
+
