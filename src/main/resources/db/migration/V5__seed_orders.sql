@@ -1,138 +1,15 @@
--- ==========================================
--- Categories
--- ==========================================
-insert into categories(id, name, price_per_hour)
-values (1, 'NORMAL', 10000),
-       (2, 'VIP', 15000),
-       (3, 'VVIP', 20000);
+-- ===========================================================================
+-- V5: Dữ liệu seed — Giỏ hàng, Đơn hàng, Chi tiết đơn hàng
+-- ===========================================================================
 
--- ==========================================
--- Users (password = bcrypt of '123456' placeholder, using plain for H2 demo)
--- ==========================================
-insert into users(id, username, full_name, password, balance, category_id)
-values (1, 'hblab', 'HB Lab User', '123456', 500000, 1),
-       (2, 'user_1', 'Nguyen Van A', '123456', 300000, 1),
-       (3, 'user_2', 'Tran Thi B', '123456', 450000, 2),
-       (4, 'user_3', 'Le Van C', '123456', 200000, 1),
-       (5, 'user_4', 'Pham Thi D', '123456', 600000, 3),
-       (6, 'user_5', 'Hoang Van E', '123456', 350000, 2),
-       (7, 'user_6', 'Do Thi F', '123456', 250000, 1),
-       (8, 'user_7', 'Vu Van G', '123456', 400000, 2),
-       (9, 'user_8', 'Bui Thi H', '123456', 150000, 1),
-       (10, 'user_9', 'Dang Van I', '123456', 550000, 3),
-       (11, 'user_10', 'Ngo Thi K', '123456', 280000, 1),
-       (12, 'user_11', 'Trinh Van L', '123456', 320000, 2),
-       (13, 'user_12', 'Mai Thi M', '123456', 180000, 1),
-       (14, 'user_13', 'Cao Van N', '123456', 420000, 2),
-       (15, 'user_14', 'Ly Thi O', '123456', 700000, 3),
-       (16, 'user_15', 'Duong Van P', '123456', 160000, 1),
-       (17, 'user_16', 'Tong Thi Q', '123456', 380000, 2),
-       (18, 'user_17', 'Lam Van R', '123456', 220000, 1),
-       (19, 'user_18', 'Dinh Thi S', '123456', 480000, 3),
-       (20, 'user_19', 'Ha Van T', '123456', 130000, 1),
-       (21, 'user_20', 'Truong Thi U', '123456', 360000, 2);
-
--- ==========================================
--- User Balance Transactions (initial deposits)
--- ==========================================
-insert into user_balance_transactions(user_id, amount, type, description)
-values (1, 500000, 1, 'Initial deposit'),
-       (2, 300000, 1, 'Initial deposit'),
-       (3, 450000, 1, 'Initial deposit'),
-       (4, 200000, 1, 'Initial deposit'),
-       (5, 600000, 1, 'Initial deposit'),
-       (6, 350000, 1, 'Initial deposit'),
-       (7, 250000, 1, 'Initial deposit'),
-       (8, 400000, 1, 'Initial deposit'),
-       (9, 150000, 1, 'Initial deposit'),
-       (10, 550000, 1, 'Initial deposit'),
-       (11, 280000, 1, 'Initial deposit'),
-       (12, 320000, 1, 'Initial deposit'),
-       (13, 180000, 1, 'Initial deposit'),
-       (14, 420000, 1, 'Initial deposit'),
-       (15, 700000, 1, 'Initial deposit'),
-       (16, 160000, 1, 'Initial deposit'),
-       (17, 380000, 1, 'Initial deposit'),
-       (18, 220000, 1, 'Initial deposit'),
-       (19, 480000, 1, 'Initial deposit'),
-       (20, 130000, 1, 'Initial deposit'),
-       (21, 360000, 1, 'Initial deposit');
-
--- ==========================================
--- Sessions
--- ==========================================
-insert into sessions(user_id, category_id, start_time, end_time, price_per_hour, status)
-values (1, 1, '2025-10-01 08:00:00', '2025-10-01 11:00:00', 10000, 2),
-       (3, 2, '2025-10-02 09:00:00', '2025-10-02 12:30:00', 15000, 2),
-       (5, 3, '2025-10-03 10:00:00', null, 20000, 1);
-
--- ==========================================
--- Items (Food & Drink - with item_type)
--- ==========================================
-insert into items(id, name, price, item_type)
-values (1, 'Xúc xích CP 40g', 5000, 1),
-       (2, 'Mỳ tôm ly Hảo Hảo', 10000, 1),
-       (3, 'Mè xửng Huế', 18000, 1),
-       (4, 'Bánh đậu xanh Bảo Đại', 12000, 1),
-       (5, 'Bánh tráng sữa', 15000, 1),
-       (6, 'Bánh pía Sóc Trăng', 25000, 1),
-       (7, 'Coconut candy', 22000, 1),
-       (8, 'Bánh tráng trộn', 15000, 1),
-       (9, 'Bánh tét', 30000, 1),
-       (10, 'Chuối nếp nướng', 20000, 1),
-       (11, 'Bánh giò', 18000, 1),
-       (12, 'Chả giò', 20000, 1),
-       (13, 'Chả lụa', 25000, 1),
-       (14, 'Bánh pate sô', 17000, 1),
-       (15, 'Prawn crackers', 15000, 1),
-       (16, 'Rice paper wrappers', 10000, 1),
-       (17, 'Red Boat fish sauce', 40000, 1),
-       (18, 'Three Ladies rice paper', 12000, 1),
-       (19, 'Maggi seasoning (nắp đỏ)', 35000, 1),
-       (20, 'Fried garlic topping', 25000, 1),
-       (21, 'Bánh phồng tôm vị tỏi', 16000, 1),
-       (22, 'Bánh phồng tôm vị ngọt', 16000, 1),
-       (23, 'Cơm cháy chà bông cay', 21000, 1),
-       (24, 'Cơm cháy chà bông mặn', 21000, 1),
-       (25, 'Mè xửng vị truyền thống', 19000, 1),
-       (26, 'Mè xửng vị sầu riêng', 20000, 1),
-       (27, 'Bánh đậu xanh mini', 13000, 1),
-       (28, 'Bánh đậu xanh hộp lớn', 30000, 1),
-       (29, 'Bánh tráng sữa Bến Tre', 15000, 1),
-       (30, 'Bánh tráng sữa mềm', 15000, 1),
-       (31, 'Trà đá', 3000, 2),
-       (32, 'Trà nóng', 5000, 2),
-       (33, 'Cà phê đen đá', 15000, 2),
-       (34, 'Cà phê đen nóng', 15000, 2),
-       (35, 'Cà phê sữa đá', 18000, 2),
-       (36, 'Cà phê sữa nóng', 18000, 2),
-       (37, 'Bạc xỉu', 20000, 2),
-       (38, 'Nước cam tươi', 25000, 2),
-       (39, 'Nước ép dưa hấu', 20000, 2),
-       (40, 'Sinh tố bơ', 25000, 2),
-       (41, 'Sinh tố dâu', 25000, 2),
-       (42, 'Trà đào', 22000, 2),
-       (43, 'Trà vải', 22000, 2),
-       (44, 'Trà chanh', 15000, 2),
-       (45, 'Coca Cola', 12000, 2),
-       (46, 'Pepsi', 12000, 2),
-       (47, '7 Up', 12000, 2),
-       (48, 'Sting', 10000, 2),
-       (49, 'Red Bull', 15000, 2),
-       (50, 'Nước suối', 5000, 2);
-
--- ==========================================
--- Cart items
--- ==========================================
-insert into cart_item(user_id, item_id, quantity)
-values (1, 1, 3),
+-- Giỏ hàng
+INSERT INTO cart_item(user_id, item_id, quantity)
+VALUES (1, 1, 3),
        (1, 33, 2),
        (3, 5, 1),
        (3, 35, 2);
 
--- ==========================================
--- Orders
--- ==========================================
+-- Đơn hàng
 INSERT INTO orders(user_id, order_status, discount, order_date, total_amount)
 VALUES (1, 1, 0, '2024-06-04', 69600),
        (1, 2, 0, '2024-06-04', 5000),
@@ -180,9 +57,7 @@ VALUES (1, 1, 0, '2024-06-04', 69600),
        (13, 3, 200, '2025-02-26', 0),
        (21, 3, 900, '2025-03-05', 0);
 
--- ==========================================
--- Order Items
--- ==========================================
+-- Chi tiết đơn hàng
 INSERT INTO order_item(order_id, item_id, quantity, price)
 VALUES (1, 1, 10, 4900),
        (1, 2, 2, 9900),

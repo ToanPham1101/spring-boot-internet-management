@@ -23,6 +23,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.1.0'
 
+    // Flyway migration
+    implementation 'org.flywaydb:flyway-core'
+
+    // Database
     implementation 'com.h2database:h2'
 
     compileOnly 'org.projectlombok:lombok:1.18.30'
