@@ -8,9 +8,6 @@ public class CartItemId implements Serializable {
     private Integer userId;
     private Integer itemId;
 
-    public CartItemId() {
-    }
-
     public CartItemId(Integer userId, Integer itemId) {
         this.userId = userId;
         this.itemId = itemId;
