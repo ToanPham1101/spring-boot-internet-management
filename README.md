@@ -143,11 +143,11 @@ docker-compose up -d
 ./gradlew bootRun
 ```
 
-| Tài nguyên | URL / Thông tin |
-|-----------|-----------------|
-| **Swagger UI** | http://localhost:8080 |
-| **PostgreSQL** | `localhost:5433` |
-| Database name | `internetshop` |
+| Tài nguyên | URL / Thông tin            |
+|-----------|----------------------------|
+| **Swagger UI** | http://localhost:8080      |
+| **PostgreSQL** | `localhost:5432`           |
+| Database name | `internetshop`             |
 | Username / Password | `postgres` / `postgres123` |
 
 **Dừng PostgreSQL:**
@@ -393,7 +393,7 @@ spring.sql.init.mode=never
 ### Cấu hình PostgreSQL trong `application.properties`
 
 ```properties
-spring.datasource.url=jdbc:postgresql://localhost:5433/internetshop
+spring.datasource.url=jdbc:postgresql://localhost:5432/internetshop
 spring.datasource.username=postgres
 spring.datasource.password=postgres123
 spring.datasource.driver-class-name=org.postgresql.Driver
