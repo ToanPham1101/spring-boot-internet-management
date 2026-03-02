@@ -1,6 +1,4 @@
--- ===========================================================================
 -- V6: Thêm cột role cho bảng users — phân quyền ADMIN / USER
--- ===========================================================================
 
 ALTER TABLE users ADD COLUMN role VARCHAR(10) NOT NULL DEFAULT 'USER';
 
