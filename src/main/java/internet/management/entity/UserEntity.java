@@ -40,6 +40,9 @@ public class UserEntity {
     @JoinColumn(name = "category_id", nullable = false)
     private CategoryEntity category;
 
+    @Column(length = 10, nullable = false)
+    private String role = "USER";
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 }

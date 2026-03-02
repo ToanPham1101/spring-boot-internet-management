@@ -10,6 +10,7 @@ public class UserResult {
     private Integer id;
     private String username;
     private String fullName;
+    private String role;
     private Integer balance;
     private String category;
     private Integer pricePerHour;

@@ -9,6 +9,7 @@ Hệ thống quản lý quán internet — quản lý tài khoản người dùn
 - [Tech Stack](#-tech-stack)
 - [Kiến trúc dự án](#-kiến-trúc-dự-án)
 - [Cách chạy](#-cách-chạy)
+- [Xác thực & Phân quyền](#-xác-thực--phân-quyền-jwt)
 - [Mô tả nghiệp vụ](#-mô-tả-nghiệp-vụ-internet-shop)
 - [Cấu trúc Database & Flyway](#-cấu-trúc-database--flyway)
 - [ER Diagram](#-er-diagram)
@@ -27,6 +28,7 @@ Hệ thống quản lý quán internet — quản lý tài khoản người dùn
 | **Build tool** | Gradle | 8.5 | Quản lý dependency, build, test |
 | **Code gen** | Lombok | 1.18.30 | Tự sinh getter/setter/constructor qua annotation (`@Data`, `@Getter`...) |
 | **API docs** | SpringDoc OpenAPI (Swagger) | 2.1.0 | Tự tạo trang Swagger UI để xem và test API |
+| **Security** | Spring Security + JWT | 6.1 / JJWT 0.11.5 | Xác thực bằng JWT token, phân quyền ADMIN/USER |
 
 ### Tại sao chọn các công nghệ này?
 
@@ -36,6 +38,7 @@ Hệ thống quản lý quán internet — quản lý tài khoản người dùn
 - **JPA/Hibernate** — ORM tiêu chuẩn, map Java object ↔ database table, giảm viết SQL thủ công
 - **Lombok** — giảm boilerplate code (getter, setter, constructor), code gọn hơn
 - **Swagger** — documentation tự động, có thể test API ngay trên trình duyệt
+- **Spring Security + JWT** — xác thực stateless bằng token, phân quyền ADMIN/USER theo role. Admin quản lý nạp tiền, bắt đầu/kết thúc phiên; User xem thông tin và đặt đồ
 
 ---
 
@@ -46,9 +49,16 @@ src/main/
 ├── java/item/
 │   ├── ItemApplication.java        
 │   │
+│   ├── security/                         #   Spring Security + JWT
+│   │   ├── SecurityConfig.java           #   Cấu hình filter chain, phân quyền endpoint
+│   │   ├── JwtUtil.java                  #   Tạo & validate JWT token
+│   │   ├── JwtAuthenticationFilter.java  #   Filter kiểm tra token mỗi request
+│   │   ├── CustomUserDetailsService.java #   Load user từ DB cho Spring Security
+│   │   └── PasswordMigrationTask.java    #   Hash plain-text password khi khởi động
+│   │
 │   ├── entity/                          
 │   │   ├── CategoryEntity.java           #   Bảng categories (NORMAL/VIP/VVIP)
-│   │   ├── UserEntity.java               #   Bảng users (tài khoản người dùng)
+│   │   ├── UserEntity.java               #   Bảng users (+ role: ADMIN/USER)
 │   │   ├── UserBalanceTransactionEntity.java  #   Bảng lịch sử giao dịch
 │   │   ├── SessionEntity.java            #   Bảng phiên sử dụng internet
 │   │   ├── ItemEntity.java               #   Bảng items (đồ ăn/thức uống)
@@ -77,6 +87,7 @@ src/main/
 │   │   └── OrderService.java          
 │   │
 │   ├── controller/                       #   Controller — REST API endpoints
+│   │   ├── AuthController.java           #   /auth/* (login, register)
 │   │   ├── UserController.java           #   /user/*
 │   │   ├── SessionController.java        #   /session/*
 │   │   ├── ItemController.java           #   /item/*
@@ -85,6 +96,8 @@ src/main/
 │   │   └── GlobalExceptionHandler.java   #   Xử lý lỗi toàn cục
 │   │
 │   └── model/                            # DTO — dữ liệu truyền giữa client ↔ server
+│       ├── LoginRequest.java             #   { username, password }
+│       ├── LoginResponse.java            #   { token, username, role }
 │       ├── CreateUserCommand.java
 │       ├── DepositCommand.java
 │       ├── CreateOrderCommand.java
@@ -99,14 +112,15 @@ src/main/
 │       └── ItemType.java                 #   Enum: FOOD(1), DRINK(2)
 │
 └── resources/
-    ├── application.properties            # Cấu hình app (datasource, flyway, jpa, swagger)
+    ├── application.properties            # Cấu hình app (datasource, flyway, jpa, jwt, swagger)
     └── db/
         └── migration/                    
             ├── V1__create_schema.sql     
             ├── V2__create_indexes.sql   
             ├── V3__seed_users.sql        
             ├── V4__seed_items.sql        
-            └── V5__seed_orders.sql       
+            ├── V5__seed_orders.sql       
+            └── V6__add_role_to_users.sql
 ```
 
 **Luồng dữ liệu:** `Controller` → `Service` → `Repository` → `Database`
@@ -129,11 +143,11 @@ docker-compose up -d
 ./gradlew bootRun
 ```
 
-| Tài nguyên | URL / Thông tin |
-|-----------|-----------------|
-| **Swagger UI** | http://localhost:8080 |
-| **PostgreSQL** | `localhost:5432` |
-| Database name | `internetshop` |
+| Tài nguyên | URL / Thông tin            |
+|-----------|----------------------------|
+| **Swagger UI** | http://localhost:8080      |
+| **PostgreSQL** | `localhost:5432`           |
+| Database name | `internetshop`             |
 | Username / Password | `postgres` / `postgres123` |
 
 **Dừng PostgreSQL:**
@@ -143,7 +157,101 @@ docker-compose down          # Dừng container (giữ dữ liệu)
 docker-compose down -v       # Dừng container + xóa dữ liệu (reset DB)
 ```
 
-> 💡 Khi app khởi động, **Flyway** tự động chạy các file migration theo thứ tự phiên bản (V1 → V2 → V3 → V4 → V5). Database được tạo schema và seed dữ liệu mẫu tự động — không cần chạy SQL thủ công.
+> 💡 Khi app khởi động, **Flyway** tự động chạy các file migration theo thứ tự phiên bản (V1 → V2 → V3 → V4 → V5 → V6). Database được tạo schema và seed dữ liệu mẫu tự động — không cần chạy SQL thủ công.
+
+---
+
+## 🔐 Xác thực & Phân quyền (JWT)
+
+### Cách hoạt động
+
+```
+Client                          Server
+  │                               │
+  │  POST /auth/login             │
+  │  { username, password }       │
+  │──────────────────────────────▶│
+  │                               │  Kiểm tra username/password (BCrypt)
+  │  { token, username, role }    │  Tạo JWT token chứa username + role
+  │◀──────────────────────────────│
+  │                               │
+  │  GET /user/1                  │
+  │  Authorization: Bearer <token>│
+  │──────────────────────────────▶│  JwtAuthenticationFilter validate token
+  │                               │  Kiểm tra quyền theo role
+  │  200 OK / 401 / 403          │
+  │◀──────────────────────────────│
+```
+
+### 2 role trong hệ thống
+
+| Role | Mô tả |
+|------|-------|
+| **USER** | Khách hàng — xem thông tin, đặt đồ ăn, xem giỏ hàng |
+| **ADMIN** | Nhân viên quầy — nạp tiền, bắt đầu/kết thúc phiên, xem tất cả user |
+
+### Tài khoản ADMIN mặc định
+
+| Username | Password | Role |
+|----------|----------|------|
+| `ToanPDT` | `123456` | ADMIN |
+
+> Tất cả user khác (user_1 → user_20) đều có role `USER`, password `123456`
+
+### Đăng nhập lấy token
+
+```bash
+curl -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "ToanPDT", "password": "123456"}'
+```
+
+Response:
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9...",
+  "username": "ToanPDT",
+  "role": "ADMIN"
+}
+```
+
+### Sử dụng token khi gọi API
+
+```bash
+curl http://localhost:8080/user \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9..."
+```
+
+### Bảng phân quyền endpoint
+
+| Endpoint | Method | Quyền |
+|----------|--------|-------|
+| `/auth/login` | POST | 🌐 Public |
+| `/auth/register` | POST | 🌐 Public |
+| `/internet/management/**` (xem menu) | GET | 🌐 Public |
+| Swagger UI (`/swagger-ui/**`) | GET | 🌐 Public |
+| `/user/{id}` | GET | 🔑 USER, ADMIN |
+| `/user/username/{username}` | GET | 🔑 USER, ADMIN |
+| `/session/time-remaining/{userId}` | GET | 🔑 USER, ADMIN |
+| `/session/history/{userId}` | GET | 🔑 USER, ADMIN |
+| `/cart`, `/cart/quantity` | GET, POST | 🔑 USER, ADMIN |
+| `/order`, `/order/search` | POST, GET | 🔑 USER, ADMIN |
+| `/user` (list all) | GET | 🛡️ ADMIN only |
+| `/user/{id}/transactions` | GET | 🛡️ ADMIN only |
+| `/user/deposit` | POST | 🛡️ ADMIN only |
+| `/user/{id}/category` | PUT | 🛡️ ADMIN only |
+| `/session/start/{userId}` | POST | 🛡️ ADMIN only |
+| `/session/end/{userId}` | POST | 🛡️ ADMIN only |
+
+### Đăng ký tài khoản mới
+
+```bash
+curl -X POST http://localhost:8080/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username": "newuser", "fullName": "Nguyen Van Z", "password": "mypass123", "category": "VIP"}'
+```
+
+> Tài khoản đăng ký qua `/auth/register` luôn có role = `USER`. Chỉ admin mới có thể nâng role.
 
 ---
 
@@ -401,9 +509,10 @@ items       (1) ◄──── (N)  cart_item                 Mỗi item có tr
 | `id` | INTEGER | PK, AUTO | Mã người dùng |
 | `username` | VARCHAR(50) | NOT NULL, UNIQUE | Tên đăng nhập |
 | `full_name` | VARCHAR(255) | NOT NULL | Họ tên |
-| `password` | VARCHAR(255) | NOT NULL | Mật khẩu |
+| `password` | VARCHAR(255) | NOT NULL | Mật khẩu (BCrypt hash) |
 | `balance` | INTEGER | NOT NULL, DEFAULT 0 | Số dư hiện tại (VNĐ) |
 | `category_id` | INTEGER | FK → categories | Gói cước đang dùng |
+| `role` | VARCHAR(10) | NOT NULL, DEFAULT 'USER' | Quyền: USER hoặc ADMIN |
 | `created_at` | TIMESTAMP | NOT NULL | Thời điểm tạo tài khoản |
 
 ### `user_balance_transactions` — Lịch sử giao dịch số dư
