@@ -158,7 +158,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres123
         ports:
-          - 5432:5432
+          - 5433:5433
         options: >-
           --health-cmd="pg_isready -U postgres -d internetshop"
           --health-interval=5s
@@ -181,14 +181,14 @@ jobs:
       - name: Compile source code
         run: ./gradlew compileJava
         env:
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/internetshop
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5433/internetshop
           SPRING_DATASOURCE_USERNAME: postgres
           SPRING_DATASOURCE_PASSWORD: postgres123
 
       - name: Run tests (Flyway migrate + JPA validate + unit tests)
         run: ./gradlew test
         env:
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/internetshop
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5433/internetshop
           SPRING_DATASOURCE_USERNAME: postgres
           SPRING_DATASOURCE_PASSWORD: postgres123
 
@@ -203,7 +203,7 @@ jobs:
       - name: Build JAR
         run: ./gradlew bootJar
         env:
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/internetshop
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5433/internetshop
           SPRING_DATASOURCE_USERNAME: postgres
           SPRING_DATASOURCE_PASSWORD: postgres123
 

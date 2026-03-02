@@ -10,6 +10,7 @@ import internet.management.model.UserResult;
 import internet.management.repository.CategoryRepository;
 import internet.management.repository.UserBalanceTransactionRepository;
 import internet.management.repository.UserRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,13 +24,16 @@ public class UserService {
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final UserBalanceTransactionRepository transactionRepository;
+    private final PasswordEncoder passwordEncoder;
 
     public UserService(UserRepository userRepository,
                        CategoryRepository categoryRepository,
-                       UserBalanceTransactionRepository transactionRepository) {
+                       UserBalanceTransactionRepository transactionRepository,
+                       PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
         this.transactionRepository = transactionRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional
@@ -45,9 +49,10 @@ public class UserService {
         UserEntity user = new UserEntity();
         user.setUsername(command.getUsername());
         user.setFullName(command.getFullName());
-        user.setPassword(command.getPassword());
+        user.setPassword(passwordEncoder.encode(command.getPassword()));
         user.setBalance(0);
         user.setCategory(category);
+        user.setRole("USER");
         user.setCreatedAt(LocalDateTime.now());
         user = userRepository.save(user);
 
@@ -133,6 +138,7 @@ public class UserService {
         result.setId(user.getId());
         result.setUsername(user.getUsername());
         result.setFullName(user.getFullName());
+        result.setRole(user.getRole());
         result.setBalance(user.getBalance());
         result.setCategory(user.getCategory().getName());
         result.setPricePerHour(user.getCategory().getPricePerHour());
